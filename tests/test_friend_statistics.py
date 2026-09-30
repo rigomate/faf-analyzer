@@ -59,7 +59,7 @@ def test_http_filters_previously_imported_guests_and_updates_from_file(tmp_path)
             assert {p['id'] for p in data['games'][0]['players']}=={'1','2','4'}
         assert client.get('/api/dashboard?player=3').json()['totals']['games']==0
         assert {p['id'] for p in client.get('/api/games/123').json()['players']}=={'1','2','4'}
-        assert 'roster' not in client.get('/api/status').json()['files'][0]
+        assert 'files' not in client.get('/api/status').json()
         # Move the guest into the friend list and a friend out, without reparsing.
         write_config(config,['1','3','4'])
         data=client.get('/api/dashboard').json()

@@ -11,6 +11,11 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080"
     environment:
       FRIENDS_CONFIG_PATH: /config/friends.json
+      API_RATE_PER_SECOND: ${API_RATE_PER_SECOND:-10}
+      API_RATE_BURST: ${API_RATE_BURST:-30}
+      STATS_CACHE_SECONDS: ${STATS_CACHE_SECONDS:-30}
+      STATS_BUILD_RATE: ${STATS_BUILD_RATE:-2}
+      STATS_BUILD_BURST: ${STATS_BUILD_BURST:-8}
       SCAN_INTERVAL_SECONDS: ${SCAN_INTERVAL_SECONDS:-60}
     volumes:
       - ${REPLAY_PATH:-./replays}:/replays:ro

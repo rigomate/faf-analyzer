@@ -27,7 +27,7 @@ docker compose logs -f
 docker compose ps
 ```
 
-`GET /healthz` checks HTTP/database availability. The Import status tab and `/api/status` report scanner errors separately.
+`GET /healthz` checks HTTP/database availability. The Replay-Import tab and `/api/status` expose only counts and a generic error flag. Detailed diagnostics are available only on the server.
 
 ## What you can see
 
@@ -50,7 +50,7 @@ Edit **`config/friends.json`** on the host. This is the only source of friend-li
 }
 ```
 
-The supplied file contains all 11 friends you confirmed. `id` is the stable numeric FAF ID, written as a JSON string; `name` is a descriptive label. Nickname changes do not affect membership. Add or remove player entries to change your group.
+The supplied file contains the 12 friends you confirmed. `id` is the stable numeric FAF ID, written as a JSON string; `name` is a descriptive label. Nickname changes do not affect membership. Add or remove player entries to change your group.
 
 - **`max_outsiders: 0`**: every active human player on both teams must be on your list.
 - **`max_outsiders: 1`**: allow one human outsider across both teams combined.
@@ -58,11 +58,50 @@ The supplied file contains all 11 friends you confirmed. `id` is the stable nume
 
 Compose mounts the entire `config/` directory read-only into the container. File changes, including atomic saves by editors, are picked up without a restart: existing statistics are filtered on the next HTTP request, and replay files are reconsidered on the next scheduled scan (normally within 60 seconds). The browser refreshes every 15 seconds. When running without Compose, set `FRIENDS_CONFIG_PATH` to your configuration file (local default: `config/friends.json`).
 
-Missing or invalid configuration excludes all matches and pauses imports until corrected; it never disables the filter or falls back to old SQLite settings. Check Import status or container logs for configuration errors. Existing database records remain intact, and relaxing a rule can restore their visibility.
+Missing or invalid configuration excludes all matches and pauses imports until corrected; it never disables the filter or falls back to old SQLite settings. The website shows a generic configuration-error notice; use container logs or the diagnostic command below for the details. Existing database records remain intact, and relaxing a rule can restore their visibility.
 
-The importer decompresses each new replay and checks its internal header **before parsing body events or extracting statistics**. Excluded files show the outsider names in Import status. The outsider allowance only determines which matches qualify. Player totals, leaderboards, the teammate matrix, player selectors, match-report statistics, and JSON statistics include only configured friends. Guest statistics are excluded even for previously imported games. Match headcounts still include guests, and team outcomes are resolved from the complete replay roster before filtering.
+The importer decompresses each new replay and checks its internal header **before parsing body events or extracting statistics**. Exclusion reasons and outsider names are kept in server diagnostics, not published on the website. The outsider allowance only determines which matches qualify. Player totals, leaderboards, the teammate matrix, player selectors, match-report statistics, and JSON statistics include only configured friends. Guest statistics are excluded even for previously imported games. Match headcounts still include guests, and team outcomes are resolved from the complete replay roster before filtering.
 
 `GET /api/roster` exposes the current rule and configured players for display. `POST`, `PUT`, `PATCH`, and `DELETE` are not supported. The legacy database settings table, if present from an earlier version, is ignored.
+
+## Anonymous public access
+
+The website needs no login. Pangolin handles public HTTPS and routing; the application exposes only read-only HTTP endpoints. Keep the backend on the intended private Docker network or loopback interface.
+
+Public diagnostics are deliberately limited:
+
+- `/api/status` returns import/exclusion/error counts, scan timing, and a generic error flag. It never returns file lists, paths, exclusion reasons, outsider names, signatures, or exception messages.
+- `/api/roster` publishes only the configured friends and rule, with a boolean configuration-error flag.
+- Dashboard JSON, match reports, and exports omit source filenames, hashes, and internal warnings. Friends-only statistics remain unchanged.
+
+For operator diagnostics on the server:
+
+```sh
+docker compose logs --tail=200 faf-analyzer
+docker compose exec faf-analyzer python -m app.diagnostics
+```
+
+The second command includes already recorded errors/exclusions, even if they aren't in recent logs. Do not publish that output as a public endpoint.
+
+### Caching and request limits
+
+The app keeps one parsed archive snapshot and caches serialized responses. SQLite triggers increment a revision when a game is inserted, replaced, updated, or deleted. Requests check that revision and the file-based friend policy before serving a cached response. Changes invalidate cached data immediately, including tightening the friend rule or an invalid configuration. Responses use `Cache-Control: no-store` so browsers and proxies don't retain outdated friend data.
+
+The response cache holds at most **64 entries / 16 MiB**, with a default lifetime of **30 seconds**. Oversized responses are served without caching. The archive snapshot itself grows with your stored games. Normal date filters use a fixed UTC-midnight cutoff, so refreshing the page reuses the same cache entry.
+
+Limits are global across all visitors, **per application process**, and intentionally do not use `X-Forwarded-For` or client-IP attribution. They work behind Pangolin/Newt without trusting visitor-supplied forwarding headers. A visitor can consume shared capacity; these limits bound application work, not volumetric DDoS traffic.
+
+| Environment variable | Default | Meaning |
+|---|---:|---|
+| `API_RATE_PER_SECOND` | 10 | Sustained requests/second across `/api/*` |
+| `API_RATE_BURST` | 30 | Burst allowance for API requests |
+| `STATS_CACHE_SECONDS` | 30 | Serialized-response cache lifetime |
+| `STATS_BUILD_RATE` | 2 | Sustained uncached statistic calculations/second |
+| `STATS_BUILD_BURST` | 8 | Burst allowance for new statistic calculations |
+
+Exhausted quotas return **429** with `Retry-After: 1`. Only one statistics read/build runs at a time; a concurrent request gets **503** with the same retry hint rather than joining an unbounded work queue. Cached requests don't spend the calculation quota. Static assets and `/healthz` are outside the API quota. The German UI keeps the current view and explains temporary overload; automatic refresh retries later.
+
+All values must be positive integers. Adjust them in `.env` and apply with `docker compose up -d`. Keep one Uvicorn worker as configured; separate workers would each have their own cache and quota. These changes do not add authentication or TLS inside the app, and do not impose replay decompression/process limits.
 
 ## Data interpretation
 
@@ -82,7 +121,7 @@ Initial sample validation: **13 replays, 11 players, 10 resolved matches, 9 matc
 
 Files are tracked by relative path, size, and nanosecond modification timestamp. Unchanged successful files are skipped. Failed imports do not stop other files and retry after five minutes; changed files retry at the next scan. A file that changes during parsing is deferred. Game IDs deduplicate copies saved by different friends; the recording with a confirmed outcome, then more player snapshots, then longer duration takes precedence. Raw SCFA files without FAF IDs deduplicate by SHA-256. Replay files are never modified or deleted. Removing a source file does not remove its archived match.
 
-The database has `games` (version-independent JSON documents keyed by match ID), `files` (import tracking, roster, policy revision, and errors) tables. Older databases are migrated automatically. One Uvicorn worker runs the background scanner; don't enable multiple workers or replicas against the same SQLite volume. Reads and imports use separate SQLite connections with WAL mode. Parsing happens outside the HTTP event loop.
+The database has `games` (version-independent JSON documents keyed by match ID), `files` (private import tracking), and `revisions` (cache invalidation) tables. Older databases are migrated automatically. One Uvicorn worker runs the background scanner; don't enable multiple workers or replicas against the same SQLite volume. Reads and imports use separate SQLite connections with WAL mode. Parsing happens outside the HTTP event loop.
 
 For a consistent backup while running:
 

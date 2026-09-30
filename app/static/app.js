@@ -8,35 +8,26 @@ const duration = v => `${Math.floor(v/60)} Min. ${Math.floor(v%60)} Sek.`;
 const empty = text => `<div class="empty">${esc(text)}</div>`;
 
 const outcomeText = value => ({win:'Sieg', victory:'Sieg', loss:'Niederlage', defeat:'Niederlage', draw:'Unentschieden', unknown:'Ergebnis unbekannt', resolved:'Entschieden'}[value] || 'Ergebnis unbekannt');
-const fileStatus = value => ({imported:'Importiert', excluded:'Ausgeschlossen', error:'Fehler'}[value] || 'Unbekannt');
-function issueText(value){
- const text=String(value);
- const known={
-  'No players from the friend list.':'Niemand aus der Freundesliste hat mitgespielt.',
-  'Friend configuration unavailable or invalid.':'Die Freundesliste fehlt oder ist ungültig.',
-  'An invalid JsonStats snapshot was skipped.':'Ein ungültiger Statistikstand wurde übersprungen.',
-  'Conflicting winning teams: outcome excluded from win statistics.':'Widersprüchliche Siegerteams: Das Ergebnis zählt nicht für die Siegstatistik.',
-  'Unlocked teams: starting-team win statistics are unavailable.':'Die Teams waren nicht gesperrt. Eine verlässliche Siegstatistik nach Startteams ist nicht möglich.',
-  'missing header data':'Die Replay-Kopfdaten fehlen oder sind unvollständig.'
- };
- if(known[text])return known[text];
- const outsiders=text.match(/^(\d+) outsiders \(maximum (\d+)\): (.*)$/);
- if(outsiders)return `${outsiders[1]} ${outsiders[1]==='1'?'Gast':'Gäste'} außerhalb der Freundesliste (erlaubt: ${outsiders[2]}): ${outsiders[3]}`;
- if(text.startsWith('Friend configuration unavailable or invalid:'))return 'Die Freundesliste fehlt oder ist ungültig. Bitte die Konfigurationsdatei prüfen.';
- if(text.startsWith('Replay directory is missing:'))return 'Der Replay-Ordner wurde nicht gefunden. Bitte die Ordner-Einbindung prüfen.';
- if(text.includes('Permission denied'))return 'Keine Leseberechtigung für die Replay-Datei. Bitte die Dateirechte prüfen.';
- return `Technische Fehlermeldung: ${text}`;
-}
 
 let rosterData;
 let data, status, sortKey='wins', sortDirection=-1, requestId=0;
-async function get(url) {const r=await fetch(url);if(!r.ok)throw new Error(`Anfrage fehlgeschlagen (${r.status})`);return r.json();}
+async function get(url) {
+ const r=await fetch(url);
+ if(!r.ok){
+  if(r.status===429||r.status===503)throw new Error('Gerade viel Betrieb am Stammtisch. Bitte kurz warten und erneut laden.');
+  throw new Error(`Anfrage fehlgeschlagen (${r.status})`);
+ }
+ return r.json();
+}
 async function refresh() {
   const id=++requestId; $('#refresh').disabled=true;
   try {
     const params=new URLSearchParams({minimum:$('#minimum').value});
     if($('#player').value) params.set('player',$('#player').value);
-    if($('#period').value!=='all') params.set('since',Date.now()/1000-Number($('#period').value)*86400);
+    if($('#period').value!=='all'){
+      const today=new Date();today.setUTCHours(0,0,0,0);
+      params.set('since',today.getTime()/1000-Number($('#period').value)*86400);
+    }
     const result=await Promise.all([get('/api/dashboard?'+params),get('/api/status'),get('/api/roster')]);
     if(id!==requestId)return;
     [data,status,rosterData]=result;$('#error').hidden=true;
@@ -51,7 +42,7 @@ async function refresh() {
   finally{if(id===requestId)$('#refresh').disabled=false;}
 }
 function render(){
- $('#sync').textContent=(status.error||status.files.some(f=>f.status==='error'))?'Replay-Import: Bitte Hinweise prüfen':status.running?'● Replays werden eingesammelt…':`● Automatischer Scan alle ${status.interval} Sek. · ${status.last_scan ? 'geprüft um '+new Date(status.last_scan*1000).toLocaleTimeString('de-DE') : 'startet gleich'}`;
+ $('#sync').textContent=(status.error||status.counts.error>0)?'Replay-Import: Bitte Hinweise prüfen':status.running?'● Replays werden eingesammelt…':`● Automatischer Scan alle ${status.interval} Sek. · ${status.last_scan ? 'geprüft um '+new Date(status.last_scan*1000).toLocaleTimeString('de-DE') : 'startet gleich'}`;
  const t=data.totals;
  $('#summary').innerHTML=[[t.games,'Partien in dieser Ansicht','ARCHIV'],[t.players,'Freunde mit Partien','DIE TRUPPE'],[t.decided,'Entschiedene Partien','BILANZ'],[`${t.stats_games}/${t.games}`,'Partien mit Statistikdaten','DATENLAGE']].map(([v,l,s])=>`<div><small>${s}</small><strong>${v}</strong><span>${l}</span></div>`).join('');
  $('#leaders').innerHTML=[['reclaim','DER SCHROTTBARON','⌁','Masse aus Reclaim'],['experimentals','BAUMEISTER DER DICKEN DINGER','◇','Experimentals gebaut'],['mass','DIE ECO-MASCHINE','↗','Masse eingenommen']].map(([key,label,icon,unit])=>{const p=data.players.filter(p=>p.metrics[key].samples).sort((a,b)=>b.metrics[key].average-a.metrics[key].average)[0];return `<article class="leader"><span class="eyebrow">${label}</span><span class="icon">${icon}</span><h3>${p?esc(p.name):'Noch keine Statistikdaten'}</h3><div class="value">${p?num(p.metrics[key].average):'—'}</div><small>${unit} / Partie mit Daten</small><small>${p?p.metrics[key].samples+' von '+p.games+' Partien mit Daten':'Wartet auf ein Replay mit Statistikdaten'}</small></article>`;}).join('');
@@ -80,13 +71,14 @@ function renderMatches(){
  $('#match-list').innerHTML=games.map(g=>`<article class="archive-card"><div><button class="match-link" data-game="${esc(g.id)}"><h3>${esc(g.title)} <span class="muted">#${esc(g.id.slice(0,12))} ↗</span></h3></button><div class="map-name" title="${esc(g.map)}">${esc(g.map)}</div><small class="muted">${date(g.played_at)} · ${duration(g.duration)} · ${g.participant_count ?? g.players.length} Spieler</small></div><div><span class="status ${g.outcome}">${g.outcome==='resolved'?'Team '+esc(g.winner)+' gewinnt':g.outcome==='draw'?'Unentschieden':'Ergebnis unbekannt'}</span><br><small class="muted">${g.players.filter(p=>p.stats_tick!=null).length}/${g.players.length} Freunde mit Statistikdaten</small></div></article>`).join('')||empty('Keine passende Partie gefunden. Die Ausrede ist vorerst sicher.');
 }
 function renderImports(){
- $('#import-info').textContent=(status.error ? issueText(status.error) : null)||`${status.files.filter(f=>f.status==='imported').length} Dateien importiert · ${status.files.filter(f=>f.status==='excluded').length} ausgeschlossen · ${status.files.filter(f=>f.status==='error').length} Fehler. Mehrere Replays derselben Partie zählen nur einmal. Archivierte Partien bleiben erhalten, auch wenn die Originaldatei entfernt wird.`;
- $('#files').innerHTML=status.files.length?`<table><thead><tr><th>Replay-Datei</th><th>Status</th><th>Details</th></tr></thead><tbody>${status.files.map(f=>`<tr><td>${esc(f.path)}</td><td class="status ${f.status==='error'?'unknown':''}">${fileStatus(f.status)}</td><td>${esc(f.error ? issueText(f.error) : 'Partie #'+f.game_id)}</td></tr>`).join('')}</tbody></table>`:empty('Der Replay-Sammler macht sich gerade warm. Der erste Scan steht noch aus.');
+ const counts=status.counts;
+ $('#import-info').textContent=status.error?'Der Replay-Import braucht gerade Aufmerksamkeit. Bereits verfügbare Statistiken bleiben abrufbar.':`${counts.imported} Dateien importiert · ${counts.excluded} ausgeschlossen · ${counts.error} nicht verarbeitet. Mehrere Replays derselben Partie zählen nur einmal.`;
+ $('#import-counts').innerHTML=[['Importiert',counts.imported,'Erfolgreich eingelesene Replay-Dateien.'],['Ausgeschlossen',counts.excluded,'Diese Replays passen nicht zur Freundesregel.'],['Nicht verarbeitet',counts.error,'Diese Replays konnten noch nicht eingelesen werden.']].map(([label,count,description])=>`<article class="panel"><h2>${label}</h2><strong class="pct">${num(count)}</strong><p>${description}</p></article>`).join('');
 }
 function showGame(id){
  const g=data.games.find(g=>g.id===id);if(!g)return;
  const teams=[...new Set(g.players.map(p=>p.team))];
- $('#game-detail').innerHTML=`<div class="eyebrow">DAS GEFECHTSPROTOKOLL</div><h2>${esc(g.title)} · #${esc(g.id)}</h2><p class="game-meta">${esc(g.map)}<br>${date(g.played_at)} · ${duration(g.duration)} · ${esc(g.filename)}<br>${g.players.length} Freunde · ${g.guest_count || 0} Gäste · Statistiken nur für die Freundesliste.</p>${teams.map(t=>`<div class="team"><h3>Team ${esc(t)} ${g.winner===t?'· SIEG':''}</h3><div class="scroll"><table><thead><tr><th>Spieler</th><th>Teamergebnis</th><th>Reclaim-Masse</th><th>Experimentals</th><th>Masse eingenommen</th><th>Energie eingenommen</th><th>Letzter Datenstand</th></tr></thead><tbody>${g.players.filter(p=>p.team===t).map(p=>`<tr><td>${esc(p.name)}<small>${['Unbekannt','UEF','Aeon','Cybran','Seraphim'][p.faction]||'Andere'} · ${esc(p.reported_result ? p.reported_result.split(', ').map(outcomeText).join(', ') : 'kein Einzelergebnis')}</small></td><td>${outcomeText(p.result)}</td><td>${num(p.reclaim)}</td><td>${num(p.experimentals)}</td><td>${num(p.mass)}</td><td>${num(p.energy)}</td><td>${p.stats_tick==null?'Fehlt':duration(p.stats_tick/10)}</td></tr>`).join('')}</tbody></table></div></div>`).join('')}<p class="footnote">Der letzte Datenstand kann vor dem Ende der Partie liegen. Die Werte sind aufgezeichnete Zwischenstände und nicht immer Endergebnisse. Wer früh ausscheidet, gewinnt trotzdem mit, wenn das Team später siegt.</p>${g.warnings.map(w=>`<p class="notice">${esc(issueText(w))}</p>`).join('')}`;
+ $('#game-detail').innerHTML=`<div class="eyebrow">DAS GEFECHTSPROTOKOLL</div><h2>${esc(g.title)} · #${esc(g.id)}</h2><p class="game-meta">${esc(g.map)}<br>${date(g.played_at)} · ${duration(g.duration)}<br>${g.players.length} Freunde · ${g.guest_count || 0} Gäste · Statistiken nur für die Freundesliste.</p>${teams.map(t=>`<div class="team"><h3>Team ${esc(t)} ${g.winner===t?'· SIEG':''}</h3><div class="scroll"><table><thead><tr><th>Spieler</th><th>Teamergebnis</th><th>Reclaim-Masse</th><th>Experimentals</th><th>Masse eingenommen</th><th>Energie eingenommen</th><th>Letzter Datenstand</th></tr></thead><tbody>${g.players.filter(p=>p.team===t).map(p=>`<tr><td>${esc(p.name)}<small>${['Unbekannt','UEF','Aeon','Cybran','Seraphim'][p.faction]||'Andere'} · ${esc(p.reported_result ? p.reported_result.split(', ').map(outcomeText).join(', ') : 'kein Einzelergebnis')}</small></td><td>${outcomeText(p.result)}</td><td>${num(p.reclaim)}</td><td>${num(p.experimentals)}</td><td>${num(p.mass)}</td><td>${num(p.energy)}</td><td>${p.stats_tick==null?'Fehlt':duration(p.stats_tick/10)}</td></tr>`).join('')}</tbody></table></div></div>`).join('')}<p class="footnote">Der letzte Datenstand kann vor dem Ende der Partie liegen. Die Werte sind aufgezeichnete Zwischenstände und nicht immer Endergebnisse. Wer früh ausscheidet, gewinnt trotzdem mit, wenn das Team später siegt.</p>`;
  $('#game-dialog').showModal();
 }
 function renderRoster(){

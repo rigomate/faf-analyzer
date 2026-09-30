@@ -14,11 +14,19 @@ class Store:
         with self.connect() as db:
             db.executescript('''
                 PRAGMA journal_mode=WAL;
+                CREATE TABLE IF NOT EXISTS revisions (name TEXT PRIMARY KEY, value INTEGER NOT NULL);
+                INSERT OR IGNORE INTO revisions VALUES ('games', 0);
                 CREATE TABLE IF NOT EXISTS games (
                     id TEXT PRIMARY KEY, document TEXT NOT NULL, imported_at REAL NOT NULL);
                 CREATE TABLE IF NOT EXISTS files (
                     path TEXT PRIMARY KEY, signature TEXT NOT NULL, status TEXT NOT NULL,
                     error TEXT, checked_at REAL NOT NULL, game_id TEXT);
+                CREATE TRIGGER IF NOT EXISTS games_insert_revision AFTER INSERT ON games
+                    BEGIN UPDATE revisions SET value=value+1 WHERE name='games'; END;
+                CREATE TRIGGER IF NOT EXISTS games_update_revision AFTER UPDATE ON games
+                    BEGIN UPDATE revisions SET value=value+1 WHERE name='games'; END;
+                CREATE TRIGGER IF NOT EXISTS games_delete_revision AFTER DELETE ON games
+                    BEGIN UPDATE revisions SET value=value+1 WHERE name='games'; END;
             ''')
             columns = {r['name'] for r in db.execute('PRAGMA table_info(files)')}
             if 'policy_revision' not in columns:
@@ -54,3 +62,15 @@ class Store:
     def roster_settings(self):
         policy = self.policy()
         return dict(policy=policy, players=policy['players'])
+
+    def game_revision(self):
+        with self.connect() as db:
+            return db.execute("SELECT value FROM revisions WHERE name='games'").fetchone()[0]
+
+    def file_counts(self):
+        counts = dict(imported=0, excluded=0, error=0)
+        with self.connect() as db:
+            for row in db.execute('SELECT status, COUNT(*) AS count FROM files GROUP BY status'):
+                if row['status'] in counts:
+                    counts[row['status']] = row['count']
+        return counts

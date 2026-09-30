@@ -52,6 +52,7 @@ class Scanner:
                             db.execute('INSERT OR REPLACE INTO files VALUES (?,?,?,?,?,?,?,?)',
                                        (relative, signature, 'excluded', str(exc), time.time(), exc.game_id,
                                         policy['revision'], json.dumps(exc.players)))
+                        logger.info('Excluded %s: %s', relative, exc)
                         continue
                     after = path.stat()
                     if (st.st_size, st.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
@@ -79,6 +80,5 @@ class Scanner:
             self.lock.release()
 
     def status(self):
-        return dict(running=self.running, last_scan=self.last_scan, error=self.last_error,
-                    files=[{key: value for key, value in row.items() if key != 'roster'}
-                           for row in self.store.files()])
+        return dict(running=self.running, last_scan=self.last_scan,
+                    error=bool(self.last_error), counts=self.store.file_counts())
