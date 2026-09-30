@@ -1,0 +1,17 @@
+{
+  "max_outsiders": 1,
+  "players": [
+    {"id": "349167", "name": "cassandra"},
+    {"id": "205099", "name": "DerFaultier"},
+    {"id": "25228", "name": "DerKinderRiegel"},
+    {"id": "465052", "name": "Druide"},
+    {"id": "27218", "name": "Ereb"},
+    {"id": "574885", "name": "Kriegsi"},
+    {"id": "325331", "name": "Spaetzles"},
+    {"id": "212189", "name": "Varistor"},
+    {"id": "401807", "name": "VogonJeltz"},
+    {"id": "358164", "name": "not_a_champ"},
+    {"id": "303498", "name": "rigomate"},
+    {"id": "212332", "name": "wolverineW"}
+  ]
+}
