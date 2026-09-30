@@ -16,7 +16,11 @@ SQLite persists in the `faf-data` Docker volume at `/data/faf.sqlite3`. `docker 
 
 ### Pangolin
 
-The app serves plain HTTP on container port **8080**, with no TLS or login of its own. By default Compose publishes it on host loopback `127.0.0.1:8080`. Point Pangolin at that address if its connector shares the host network; otherwise attach its connector to the Compose network and target `http://faf-analyzer:8080`, or set `BIND_ADDRESS` to a host interface reachable by the connector. Use a dedicated hostname at `/` (a URL subpath is not supported). Configure access control at your proxy if desired.
+The app serves plain HTTP on container port **8080**, with no TLS or login of its own. Compose connects it to your existing external Docker network **`pangolin`**. The network must already exist, and your Pangolin/Newt connector must also be attached to it.
+
+Set the Pangolin target to **`http://faf-analyzer:8080`**. Use a dedicated hostname at `/` (a URL subpath is not supported). Host access remains available through the published loopback port (`8080` by default, `8093` in this workspace's `.env`).
+
+Apply network changes with `docker compose up -d`. For a standalone installation without an existing Pangolin network, create it first with `docker network create pangolin`.
 
 ```sh
 docker compose logs -f
