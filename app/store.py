@@ -47,8 +47,8 @@ class Store:
     def policy(self):
         return load_policy(self.config_path)
 
-    def eligible_games(self):
-        policy = self.policy()
+    def eligible_games(self, policy=None):
+        policy = self.policy() if policy is None else policy
         return [g for g in self.games() if exclusion_reason(g['players'], policy) is None]
 
     def roster_settings(self):

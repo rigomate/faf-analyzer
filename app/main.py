@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from .scanner import Scanner
-from .stats import summarize
+from .stats import summarize, statistics_game
 from .store import Store
 
 logging.basicConfig(level=logging.INFO)
@@ -52,18 +52,21 @@ def create_app(db_path=None, replay_dir=None, interval=None, config_path=None):
     @app.get('/api/dashboard')
     def dashboard(player: str | None = None, since: float | None = None,
                   minimum: int = Query(2, ge=1, le=1000)):
-        games = store.eligible_games()
+        policy = store.policy()
+        friends = set(policy['player_ids'])
+        games = store.eligible_games(policy)
         if player:
-            games = [g for g in games if any(p['id'] == player for p in g['players'])]
+            games = [g for g in games if player in friends and any(p['id'] == player for p in g['players'])]
         if since is not None:
             games = [g for g in games if (g.get('played_at') or 0) >= since]
-        return summarize(games, minimum)
+        return summarize(games, minimum, player_ids=friends)
 
     @app.get('/api/games/{game_id}')
     def game(game_id: str):
-        for g in store.eligible_games():
+        policy = store.policy()
+        for g in store.eligible_games(policy):
             if g['id'] == game_id:
-                return g
+                return statistics_game(g, policy['player_ids'])
         raise HTTPException(404, 'Game not found')
 
     @app.get('/api/roster')

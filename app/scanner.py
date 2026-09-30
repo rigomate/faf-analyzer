@@ -80,4 +80,5 @@ class Scanner:
 
     def status(self):
         return dict(running=self.running, last_scan=self.last_scan, error=self.last_error,
-                    files=self.store.files())
+                    files=[{key: value for key, value in row.items() if key != 'roster'}
+                           for row in self.store.files()])

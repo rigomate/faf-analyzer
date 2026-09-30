@@ -12,7 +12,18 @@ def wilson(wins, n):
     return [max(0, center-margin), min(1, center+margin)]
 
 
-def summarize(games, minimum=2):
+def statistics_game(game, player_ids):
+    """Publish statistics only for friends; preserve full-match outcome and headcount."""
+    friends = set(player_ids)
+    visible = [p for p in game['players'] if p['id'] in friends]
+    return {**game, 'players': visible, 'participant_count': len(game['players']),
+            'guest_count': len(game['players']) - len(visible)}
+
+
+def summarize(games, minimum=2, player_ids=None):
+    if player_ids is not None:
+        games = [statistics_game(game, player_ids) for game in games]
+
     players, pairs = {}, {}
     for game in sorted(games, key=lambda g: g.get('played_at') or 0):
         for p in game['players']:

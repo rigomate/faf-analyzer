@@ -60,7 +60,7 @@ Compose mounts the entire `config/` directory read-only into the container. File
 
 Missing or invalid configuration excludes all matches and pauses imports until corrected; it never disables the filter or falls back to old SQLite settings. Check Import status or container logs for configuration errors. Existing database records remain intact, and relaxing a rule can restore their visibility.
 
-The importer decompresses each new replay and checks its internal header **before parsing body events or extracting statistics**. Excluded files show the outsider names in Import status. Allowed guests remain visible in eligible match reports and statistics.
+The importer decompresses each new replay and checks its internal header **before parsing body events or extracting statistics**. Excluded files show the outsider names in Import status. The outsider allowance only determines which matches qualify. Player totals, leaderboards, the teammate matrix, player selectors, match-report statistics, and JSON statistics include only configured friends. Guest statistics are excluded even for previously imported games. Match headcounts still include guests, and team outcomes are resolved from the complete replay roster before filtering.
 
 `GET /api/roster` exposes the current rule and configured players for display. `POST`, `PUT`, `PATCH`, and `DELETE` are not supported. The legacy database settings table, if present from an earlier version, is ignored.
 
