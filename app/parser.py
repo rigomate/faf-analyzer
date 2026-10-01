@@ -10,7 +10,10 @@ from fafreplay import Parser, body_offset, body_ticks, commands, extract_scfa
 
 RESULT = re.compile(r"^GpgNetSend with command 'GameResult' and data '(\d+),(victory|defeat|draw)\b")
 STATS_PREFIX = "GpgNetSend with command 'JsonStats' and data '"
+# Bump when changing extracted facts so unchanged replay files are reprocessed.
+PARSER_VERSION = 2
 METRICS = {
+    'score': ('general', 'score'),
     'reclaim': ('resources', 'massin', 'reclaimed'),
     'mass': ('resources', 'massin', 'total'),
     'energy': ('resources', 'energyin', 'total'),

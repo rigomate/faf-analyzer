@@ -3,7 +3,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from .parser import parse_replay, ExcludedReplay
+from .parser import parse_replay, ExcludedReplay, PARSER_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class Scanner:
                 signature = ''
                 try:
                     st = path.stat()
-                    signature = f'{st.st_size}:{st.st_mtime_ns}'
+                    signature = f'{PARSER_VERSION}:{st.st_size}:{st.st_mtime_ns}'
                     previous = known.get(relative)
                     if time.time() - st.st_mtime < self.settle_seconds:
                         continue

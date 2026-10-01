@@ -12,10 +12,15 @@ def wilson(wins, n):
     return [max(0, center-margin), min(1, center+margin)]
 
 
+def has_known_result(game):
+    return game.get('outcome') in {'resolved', 'draw'}
+
+
 def statistics_game(game, player_ids):
     """Publish statistics only for friends; preserve full-match outcome and headcount."""
     friends = set(player_ids)
-    visible = [p for p in game['players'] if p['id'] in friends]
+    visible = [{**p, **{metric: p.get(metric) for metric in METRICS}}
+               for p in game['players'] if p['id'] in friends]
     # Public allowlist: no source filenames, hashes, or internal diagnostics.
     fields = ('id', 'title', 'map', 'played_at', 'duration', 'outcome', 'winner')
     return {**{key: game.get(key) for key in fields}, 'players': visible,
@@ -23,6 +28,7 @@ def statistics_game(game, player_ids):
 
 
 def summarize(games, minimum=2, player_ids=None):
+    games = [game for game in games if has_known_result(game)]
     if player_ids is not None:
         games = [statistics_game(game, player_ids) for game in games]
 
@@ -35,7 +41,7 @@ def summarize(games, minimum=2, player_ids=None):
             entry['games'] += 1
             entry[{'win':'wins', 'loss':'losses', 'draw':'draws', 'unknown':'unknown'}[p['result']]] += 1
             for metric in METRICS:
-                if p[metric] is not None:
+                if p.get(metric) is not None:
                     entry['metrics'][metric].append(p[metric])
         for a, b in combinations(game['players'], 2):
             if a['team'] != b['team']:

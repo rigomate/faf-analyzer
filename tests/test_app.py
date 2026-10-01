@@ -50,15 +50,16 @@ def test_no_winner_is_not_a_loss_and_conflicts_not_guessed():
 def test_snapshots_are_latest_per_player_not_summed():
     def snap(tick, mass):
         return callback("GpgNetSend with command 'JsonStats' and data '" + json.dumps({'stats':[
-            {'name':'A', 'general':{'lastupdatetick':tick}, 'resources':{'massin':{'total':mass,'reclaimed':0}},
+            {'name':'A', 'general':{'lastupdatetick':tick, 'score':mass*2}, 'resources':{'massin':{'total':mass,'reclaimed':0}},
              'units':{'experimental':{'built':2}}}]}) + "'")
-    g = extract_facts(header(), [snap(100, 500), snap(300, 900), snap(100, 500)], {}, 100)
+    g = extract_facts(header(), [snap(100, 500), snap(300, 900), snap(100, 500), result(1, "victory")], {}, 100)
     a, b, _ = g['players']
     assert a['mass'] == 900 and a['experimentals'] == 2 and a['reclaim'] == 0
-    assert b['mass'] is None
+    assert a['score'] == 1800
+    assert b['mass'] is None and b['score'] is None
     d = summarize([g])
     assert next(p for p in d['players'] if p['id']=='1')['metrics']['mass']['samples'] == 1
-    assert d['pairs'][0]['decided'] == 0
+    assert d['pairs'][0]['decided'] == 1
 
 
 def test_ffa_players_not_teammates():
@@ -81,7 +82,11 @@ def test_real_replay_stats_and_team_result():
 
 @pytest.mark.skipif(not REPLAYS.exists(), reason='Sample replays not installed')
 def test_import_is_idempotent_and_preserves_missing_data(tmp_path):
-    store = Store(tmp_path/'db.sqlite3')
+    config = tmp_path/'friends.json'
+    policy = json.loads((REPLAYS.parent/'config/friends.json').read_text())
+    policy['min_friends'] = 1  # This historical parser fixture includes a solo replay.
+    config.write_text(json.dumps(policy))
+    store = Store(tmp_path/'db.sqlite3', config)
     samples = tmp_path/'original-samples'
     samples.mkdir()
     for replay_id in ['27725732','27726302','27765261','27765952','27802228','27802810','27838450','27838982','27875183','27875668','27875677','27875681','27875731']:
@@ -93,7 +98,7 @@ def test_import_is_idempotent_and_preserves_missing_data(tmp_path):
     assert store.files() == first
     assert all(f['status']=='imported' for f in first)
     d = summarize(store.games())
-    assert d['totals'] == {'games':13, 'players':11, 'decided':10, 'stats_games':9}
+    assert d['totals'] == {'games':10, 'players':11, 'decided':10, 'stats_games':9}
     missing = next(g for g in store.games() if g['id']=='27765261')
     assert all(p['mass'] is None for p in missing['players'])
     assert len(missing['players']) == 8  # Outer metadata incorrectly says seven.
@@ -152,3 +157,26 @@ def test_background_scanner_picks_up_new_file_after_startup(tmp_path):
         assert client.get('/api/dashboard').json()['totals']['games']==1
         assert client.get('/api/dashboard?player=303498').json()['totals']['games']==1
         assert client.get('/api/dashboard?player=absent').json()['totals']['games']==0
+
+
+@pytest.mark.skipif(not REPLAYS.exists(), reason='Sample replays not installed')
+def test_existing_import_is_backfilled_after_parser_upgrade(tmp_path):
+    folder = tmp_path/'replays'
+    folder.mkdir()
+    replay = folder/'sample.fafreplay'
+    shutil.copyfile(REPLAYS/'27726302-rigomate.fafreplay', replay)
+    store = Store(tmp_path/'db.sqlite3')
+    scanner = Scanner(store, folder, 0)
+    scanner.scan()
+    game = store.games()[0]
+    expected = {p['id']: p.pop('score') for p in game['players']}
+    assert any(v is not None for v in expected.values())
+    with store.connect() as db:
+        db.execute('UPDATE games SET document=?', (json.dumps(game),))
+        db.execute('UPDATE files SET signature=?', (f'{replay.stat().st_size}:{replay.stat().st_mtime_ns}',))
+    # Archived matches remain readable until their source is processed again.
+    old = summarize(store.games())
+    assert all(p['metrics']['score']['samples'] == 0 for p in old['players'])
+    scanner.scan()
+    assert len(store.games()) == 1
+    assert {p['id']: p['score'] for p in store.games()[0]['players']} == expected

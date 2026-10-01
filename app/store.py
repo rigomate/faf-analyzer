@@ -4,6 +4,7 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 from .roster import exclusion_reason, load_policy
+from .stats import has_known_result
 
 
 class Store:
@@ -57,7 +58,7 @@ class Store:
 
     def eligible_games(self, policy=None):
         policy = self.policy() if policy is None else policy
-        return [g for g in self.games() if exclusion_reason(g['players'], policy) is None]
+        return [g for g in self.games() if has_known_result(g) and exclusion_reason(g['players'], policy) is None]
 
     def roster_settings(self):
         policy = self.policy()

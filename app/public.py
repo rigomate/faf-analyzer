@@ -9,7 +9,7 @@ from fastapi import HTTPException
 from starlette.responses import JSONResponse, Response
 
 from .roster import exclusion_reason
-from .stats import statistics_game, summarize
+from .stats import has_known_result, statistics_game, summarize
 
 
 def positive_env(name, default):
@@ -107,7 +107,7 @@ class PublicStatistics:
                                     headers={'Retry-After': '1', 'Cache-Control': 'no-store'})
             if generation != self.generation:
                 games = [statistics_game(g, friends) for g in self.store.games()
-                         if exclusion_reason(g['players'], policy) is None]
+                         if has_known_result(g) and exclusion_reason(g['players'], policy) is None]
                 self.games = games
                 self.by_id = {g['id']: g for g in games}
                 self.generation = generation

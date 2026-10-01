@@ -43,6 +43,7 @@ Edit **`config/friends.json`** on the host. This is the only source of friend-li
 ```json
 {
   "max_outsiders": 0,
+  "min_friends": 2,
   "players": [
     {"id": "303498", "name": "rigomate"},
     {"id": "25228", "name": "DerKinderRiegel"}
@@ -54,7 +55,7 @@ The supplied file contains the 12 friends you confirmed. `id` is the stable nume
 
 - **`max_outsiders: 0`**: every active human player on both teams must be on your list.
 - **`max_outsiders: 1`**: allow one human outsider across both teams combined.
-- At least one listed friend must participate. An empty list excludes all matches. Spectators, civilians, and AI do not count toward the human outsider limit.
+- **`min_friends: 2`**: require at least two distinct listed friends across both teams; one friend against an outsider (or AI, or alone) is excluded. The supplied configuration uses 2. Values 1–200 are accepted; older files without this key default to 1. This is a total participant count, not a count of teammates. An empty list excludes all matches. Spectators, civilians, and AI do not count toward the human outsider limit.
 
 Compose mounts the entire `config/` directory read-only into the container. File changes, including atomic saves by editors, are picked up without a restart: existing statistics are filtered on the next HTTP request, and replay files are reconsidered on the next scheduled scan (normally within 60 seconds). The browser refreshes every 15 seconds. When running without Compose, set `FRIENDS_CONFIG_PATH` to your configuration file (local default: `config/friends.json`).
 
@@ -119,7 +120,7 @@ Initial sample validation: **13 replays, 11 players, 10 resolved matches, 9 matc
 
 ## Import and persistence behavior
 
-Files are tracked by relative path, size, and nanosecond modification timestamp. Unchanged successful files are skipped. Failed imports do not stop other files and retry after five minutes; changed files retry at the next scan. A file that changes during parsing is deferred. Game IDs deduplicate copies saved by different friends; the recording with a confirmed outcome, then more player snapshots, then longer duration takes precedence. Raw SCFA files without FAF IDs deduplicate by SHA-256. Replay files are never modified or deleted. Removing a source file does not remove its archived match.
+Files are tracked by parser version, relative path, size, and nanosecond modification timestamp. Parser upgrades automatically reprocess available source files to backfill new metrics; archived games without source files keep missing metrics as null. Unchanged successful files are skipped. Failed imports do not stop other files and retry after five minutes; changed files retry at the next scan. A file that changes during parsing is deferred. Game IDs deduplicate copies saved by different friends; the recording with a confirmed outcome, then more player snapshots, then longer duration takes precedence. Raw SCFA files without FAF IDs deduplicate by SHA-256. Replay files are never modified or deleted. Removing a source file does not remove its archived match.
 
 The database has `games` (version-independent JSON documents keyed by match ID), `files` (private import tracking), and `revisions` (cache invalidation) tables. Older databases are migrated automatically. One Uvicorn worker runs the background scanner; don't enable multiple workers or replicas against the same SQLite volume. Reads and imports use separate SQLite connections with WAL mode. Parsing happens outside the HTTP event loop.
 
@@ -146,3 +147,17 @@ python3 -m venv .venv
 Local defaults: `REPLAY_DIR=replays`, `DATABASE_PATH=data/faf.sqlite3`, `SCAN_INTERVAL_SECONDS=60`, and `FRIENDS_CONFIG_PATH=config/friends.json`. Override with environment variables. The sample integration tests automatically skip when the replay folder is absent.
 
 Statistics JSON endpoints: `/api/dashboard` (optional `player`, Unix timestamp `since`, and `minimum`), `/api/games/{id}`, `/api/status`. OpenAPI docs are at `/docs`.
+
+
+## Game history charts
+
+The German **Verlauf** tab plots games chronologically on X and each friend's total for that game on Y. Select mass income, reclaim, score (`general.score`), energy, experimentals built, mass spent, mass overflow, or destroyed mass. Each metric has its own scale. These are the latest reported per-game snapshots, not running career totals.
+
+Checkboxes hide/show metrics and individual friends; the default shows mass, reclaim, and score for the latest 50 games. Choose 25, 50, 100, or all games. The dashboard's player and period filters also apply. Every recorded value has a point. Dashed connectors bridge missing values and non-participation for visual continuity, without adding measurements; genuine zeroes remain zero. Games without dates are omitted with a count. Hover/tap to inspect values, or focus a chart and use arrow keys, Home/End, and Enter to open the match report. Selections survive automatic refreshes but are not saved on the server. Charts run locally without a CDN or extra API requests.
+
+Only games with a known result enter public statistics, charts, match lists, and detail endpoints: confirmed wins/losses and explicit draws. Unknown outcomes (including conflicting or absent results) remain stored for later reprocessing but contribute no games, players, pairs, or economy samples. Draws contribute economy statistics but remain excluded from win-rate denominators. Import counts include archived files regardless of outcome.
+
+
+Player entries accept an optional `color`, for example `{"id":"303498","name":"rigomate","color":"yellow"}` or `"color":"#fafa00"`. The history charts use these configured colors for lines, points, checkboxes, and value legends, including after filtering or refresh. Without a color, the existing chart palette is used. Changes are picked up on the next dashboard refresh; no replay rescan is needed for a color edit.
+
+Supported names map to the [standard FAF palette](https://github.com/FAForever/fa/blob/develop/lua/GameColors.lua): red, dark-red, orange, brown, gold, yellow, light-green, green, dark-green, olive, light-blue, blue, dark-purple, purple, cyan/aqua, white, grey/gray, pink, and fuchsia. These are application aliases, not CSS color names. Exact `#RRGGBB` values are also supported. In particular light-blue maps to FAF's blue1 and cyan to aqua. Replay headers contain numerical ArmyColor/PlayerColor indices; those represent the choice for that particular match and do not override the configured dashboard color.

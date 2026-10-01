@@ -167,3 +167,31 @@ def test_token_bucket_refills_without_sleep():
     assert bucket.take() and not bucket.take()
     now[0]=100
     assert bucket.take() and bucket.take() and not bucket.take()
+
+
+def test_unknown_results_excluded_and_result_updates_invalidate_cache(setup):
+    app, _, game = setup
+    service = PublicStatistics(app.state.store, build_burst=100)
+    assert document(service.dashboard())['totals']['games'] == 1
+    for outcome in ['unknown', None, 'draw', 'resolved']:
+        game['outcome'] = outcome
+        for player in game['players']:
+            player['result'] = 'draw' if outcome == 'draw' else ('win' if outcome == 'resolved' else 'unknown')
+        with app.state.store.connect() as db:
+            db.execute('UPDATE games SET document=? WHERE id=?', (json.dumps(game), '123'))
+        data = document(service.dashboard())
+        direct = summarize([game])
+        if outcome in ('unknown', None):
+            assert data['totals'] == dict(games=0, players=0, decided=0, stats_games=0)
+            assert data['players'] == data['pairs'] == data['games'] == []
+            assert direct['totals']['games'] == 0
+            assert app.state.store.eligible_games() == []
+            with pytest.raises(HTTPException) as exc:
+                service.game('123')
+            assert exc.value.status_code == 404
+        else:
+            assert data['totals']['games'] == direct['totals']['games'] == 1
+            assert document(service.game('123'))['outcome'] == outcome
+            assert all(p['metrics']['mass']['samples'] == 1 for p in data['players'])
+            if outcome == 'draw':
+                assert all(p['win_rate'] is None and p['draws'] == 1 for p in data['players'])

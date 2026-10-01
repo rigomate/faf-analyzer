@@ -1,17 +1,18 @@
 {
   "max_outsiders": 1,
+  "min_friends": 2,
   "players": [
-    {"id": "349167", "name": "cassandra"},
-    {"id": "205099", "name": "DerFaultier"},
-    {"id": "25228", "name": "DerKinderRiegel"},
-    {"id": "465052", "name": "Druide"},
-    {"id": "27218", "name": "Ereb"},
-    {"id": "574885", "name": "Kriegsi"},
-    {"id": "325331", "name": "Spaetzles"},
-    {"id": "212189", "name": "Varistor"},
-    {"id": "401807", "name": "VogonJeltz"},
-    {"id": "358164", "name": "not_a_champ"},
-    {"id": "303498", "name": "rigomate"},
-    {"id": "212332", "name": "wolverineW"}
+    {"id": "349167", "name": "cassandra", "color": "light-green"},
+    {"id": "205099", "name": "DerFaultier", "color": "white"},
+    {"id": "25228", "name": "DerKinderRiegel", "color": "pink"},
+    {"id": "465052", "name": "Druide", "color": "green"},
+    {"id": "27218", "name": "Ereb", "color": "cyan"},
+    {"id": "574885", "name": "Kriegsi", "color": "blue"},
+    {"id": "325331", "name": "Spaetzles", "color": "orange"},
+    {"id": "212189", "name": "Varistor", "color": "red"},
+    {"id": "401807", "name": "VogonJeltz", "color": "grey"},
+    {"id": "358164", "name": "not_a_champ", "color": "light-blue"},
+    {"id": "303498", "name": "rigomate", "color": "yellow"},
+    {"id": "212332", "name": "wolverineW", "color": "brown"}
   ]
 }

@@ -19,8 +19,8 @@ def policy(ids, guests=0):
     return dict(configured=True, player_ids=ids, max_outsiders=guests, revision=1)
 
 
-def write_config(path, ids, guests=0):
-    document = {'players':[{'id':i, 'name':'Player '+i} for i in ids], 'max_outsiders':guests}
+def write_config(path, ids, guests=0, minimum=1):
+    document = {'players':[{'id':i, 'name':'Player '+i} for i in ids], 'max_outsiders':guests, 'min_friends':minimum}
     replacement = path.with_suffix('.new')
     replacement.write_text(json.dumps(document))
     replacement.replace(path)
@@ -117,6 +117,12 @@ def test_file_policy_filters_details_and_exports_and_api_is_read_only(tmp_path):
         write_config(config,ids[:-1],1)
         assert client.get('/api/dashboard').json()['totals']['games']==1
         assert client.get('/api/games/'+game['id']).status_code==200
+        write_config(config,ids[:-1],1,minimum=len(ids))
+        assert client.get('/api/dashboard').json()['totals']['games']==0
+        assert client.get('/api/games/'+game['id']).status_code==404
+        assert client.get('/api/roster').json()['policy']['min_friends']==len(ids)
+        write_config(config,ids[:-1],1,minimum=len(ids)-1)
+        assert client.get('/api/dashboard').json()['totals']['games']==1
         write_config(config,[],1)
         assert client.get('/api/dashboard').json()['totals']['games']==0
         assert client.get('/api/roster').json()['players']==[]
@@ -149,3 +155,53 @@ def test_missing_or_invalid_config_fails_closed_and_recovers(tmp_path,content):
     revision=store.policy()['revision']
     write_config(config,['1'])
     assert store.policy()['revision']==revision
+
+
+def test_minimum_counts_distinct_friends_across_teams():
+    rule = {**policy(['1', '2'], 1), 'min_friends': 2}
+    friend = dict(id='1', name='Friend', team='2')
+    guest = dict(id='3', name='Guest', team='3')
+    assert exclusion_reason([friend], rule)
+    assert exclusion_reason([friend, guest], rule)
+    assert exclusion_reason([friend, friend, guest], rule)
+    assert exclusion_reason([friend, dict(id='2', name='Friend2', team='3'), guest], rule) is None
+    assert exclusion_reason([friend, guest], {**rule, 'min_friends': 1}) is None
+
+
+@pytest.mark.parametrize('minimum', [0, -1, 201, True, 1.5, '2', None])
+def test_invalid_minimum_fails_closed(tmp_path, minimum):
+    config = tmp_path/'friends.json'
+    write_config(config, ['1'], minimum=minimum)
+    assert load_policy(config)['error']
+
+
+def test_legacy_minimum_default_and_revision_change(tmp_path):
+    config = tmp_path/'friends.json'
+    config.write_text(json.dumps({'players':[{'id':'1', 'name':'Friend'}], 'max_outsiders':1}))
+    before = load_policy(config)
+    assert before['min_friends'] == 1 and not before['error']
+    write_config(config, ['1'], 1, minimum=2)
+    after = load_policy(config)
+    assert after['revision'] != before['revision']
+    assert exclusion_reason([dict(id='1', name='Friend')], after)
+
+
+@pytest.mark.parametrize('color,expected', [('light-green','#9fd802'), ('yellow','#fafa00'), ('grey','#616d7e'), ('#A1B2C3','#a1b2c3')])
+def test_configured_player_colors(tmp_path, color, expected):
+    config=tmp_path/'friends.json'
+    write_config(config,['1'])
+    old=load_policy(config)
+    data=json.loads(config.read_text())
+    data['players'][0]['color']=color
+    config.write_text(json.dumps(data))
+    policy=load_policy(config)
+    assert policy['error'] is None
+    assert policy['players'][0]['color']==expected
+    assert policy['revision']==old['revision']  # Display edits need no replay reimport.
+
+
+@pytest.mark.parametrize('color', ['unknown', '#12345g', 'red;display:none', '\" onmouseover=alert(1)', None, 123])
+def test_invalid_player_color_fails_closed(tmp_path, color):
+    config=tmp_path/'friends.json'
+    config.write_text(json.dumps({'players':[{'id':'1','name':'Friend','color':color}], 'max_outsiders':1}))
+    assert load_policy(config)['error']

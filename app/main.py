@@ -70,7 +70,7 @@ def create_app(db_path=None, replay_dir=None, interval=None, config_path=None):
     def roster():
         policy = store.policy()
         return {'policy': {'configured': True, 'player_ids': policy['player_ids'],
-                           'max_outsiders': policy['max_outsiders'], 'error': bool(policy['error'])},
+                           'max_outsiders': policy['max_outsiders'], 'min_friends': policy['min_friends'], 'error': bool(policy['error'])},
                 'players': policy['players']}
 
     @app.get('/api/status')
