@@ -10,9 +10,10 @@
     {"id": "574885", "name": "Kriegsi", "color": "blue"},
     {"id": "325331", "name": "Spaetzles", "color": "orange"},
     {"id": "212189", "name": "Varistor", "color": "red"},
-    {"id": "401807", "name": "VogonJeltz", "color": "grey"},
+    {"id": "401807", "name": "VogonJeltz", "color": "dark-green"},
     {"id": "358164", "name": "not_a_champ", "color": "light-blue"},
     {"id": "303498", "name": "rigomate", "color": "yellow"},
-    {"id": "212332", "name": "wolverineW", "color": "brown"}
+    {"id": "212332", "name": "wolverineW", "color": "brown"},
+    {"id": "312445", "name": "TheWookie", "color": "grey"}    
   ]
 }
