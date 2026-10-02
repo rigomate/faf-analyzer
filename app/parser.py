@@ -1,17 +1,19 @@
 """Extract recorded facts; never infer simulation statistics from issued orders."""
 import hashlib
+import io
+import zstandard
 import json
 import math
 import re
 from pathlib import Path
 from .roster import exclusion_reason
 
-from fafreplay import Parser, body_offset, body_ticks, commands, extract_scfa
+from fafreplay import Parser, body_offset, body_ticks, commands, extract_scfa as library_extract_scfa
 
 RESULT = re.compile(r"^GpgNetSend with command 'GameResult' and data '(\d+),(victory|defeat|draw)\b")
 STATS_PREFIX = "GpgNetSend with command 'JsonStats' and data '"
 # Bump when changing extracted facts so unchanged replay files are reprocessed.
-PARSER_VERSION = 2
+PARSER_VERSION = 3
 METRICS = {
     'score': ('general', 'score'),
     'reclaim': ('resources', 'massin', 'reclaimed'),
@@ -22,6 +24,27 @@ METRICS = {
     'mass_wasted': ('resources', 'massout', 'excess'),
     'kills_mass': ('general', 'kills', 'mass'),
 }
+
+
+def extract_scfa(stream):
+    """Decode vault frames without requiring an embedded decompressed size."""
+    raw = stream.read()
+    header, payload = raw.split(b'\n', 1)
+    version = json.loads(header).get('version', 1)
+    if version == 1:
+        return library_extract_scfa(io.BytesIO(raw))
+    if version != 2:
+        raise ValueError(f'Unsupported FAF replay version: {version}')
+    if not payload:
+        raise ValueError('Empty Zstandard replay payload.')
+    parts = []
+    while payload:
+        decoder = zstandard.ZstdDecompressor().decompressobj()
+        parts.append(decoder.decompress(payload))
+        if not decoder.eof:
+            raise ValueError('Incomplete Zstandard replay frame.')
+        payload = decoder.unused_data
+    return b''.join(parts)
 
 
 def decode(value):

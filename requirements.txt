@@ -1,3 +1,4 @@
 faf-replay-parser[faf]==0.6.0
 fastapi==0.142.2
 uvicorn==0.54.0
+zstandard==0.25.0
