@@ -51,6 +51,7 @@ function render(){
  $('#recent').innerHTML=data.games.slice(0,4).map(g=>`<div class="row"><div class="grow"><button class="match-link" data-game="${esc(g.id)}"><strong>${esc(g.title)} <span class="muted">#${esc(g.id.slice(0,12))}</span></strong></button><small>${date(g.played_at)} · ${g.participant_count ?? g.players.length} Spieler · ${duration(g.duration)}</small></div><span class="status ${g.outcome}">${g.outcome==='resolved'?'Team '+esc(g.winner)+' gewinnt':outcomeText(g.outcome)}</span></div>`).join('')||empty('Hier ist noch Ruhe vor dem Sturm. Legt Replays in den Replay-Ordner.');
  renderPlayers();renderPairs();renderMatches();renderImports();renderRoster();
  FafHistory.update(data, rosterData.players);
+ FafBalance.update(data.elo, rosterData.players);
 }
 function renderPlayers(){
  const agg=$('#aggregation').value;

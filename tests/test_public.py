@@ -195,3 +195,19 @@ def test_unknown_results_excluded_and_result_updates_invalidate_cache(setup):
             assert all(p['metrics']['mass']['samples'] == 1 for p in data['players'])
             if outcome == 'draw':
                 assert all(p['win_rate'] is None and p['draws'] == 1 for p in data['players'])
+
+
+def test_elo_uses_all_eligible_games_not_display_filters(setup):
+    app,config,game=setup
+    game['played_at']=100
+    with app.state.store.connect() as db:
+        db.execute('UPDATE games SET document=? WHERE id=?',(json.dumps(game),'123'))
+    service=PublicStatistics(app.state.store,build_burst=100)
+    data=document(service.dashboard())
+    assert data['elo']['games']==1
+    assert {p['id'] for p in data['elo']['players']}=={'1','2','4'}
+    assert document(service.dashboard(since=200))['elo']==data['elo']
+    assert document(service.dashboard(player='4'))['elo']==data['elo']
+    write_config(config,['1','4'])
+    fresh=document(service.dashboard())['elo']
+    assert fresh['games']==0 and all(p['rating']==1000 for p in fresh['players'])

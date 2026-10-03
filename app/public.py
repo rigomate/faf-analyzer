@@ -8,6 +8,7 @@ from collections import OrderedDict
 from fastapi import HTTPException
 from starlette.responses import JSONResponse, Response
 
+from .elo import calculate_elo
 from .roster import exclusion_reason
 from .stats import has_known_result, statistics_game, summarize
 
@@ -106,8 +107,10 @@ class PublicStatistics:
                 raise HTTPException(429, 'Zu viele neue Statistikabfragen. Bitte kurz warten.',
                                     headers={'Retry-After': '1', 'Cache-Control': 'no-store'})
             if generation != self.generation:
-                games = [statistics_game(g, friends) for g in self.store.games()
-                         if has_known_result(g) and exclusion_reason(g['players'], policy) is None]
+                eligible = [g for g in self.store.games()
+                            if has_known_result(g) and exclusion_reason(g['players'], policy) is None]
+                self.elo = calculate_elo(eligible, friends)
+                games = [statistics_game(g, friends) for g in eligible]
                 self.games = games
                 self.by_id = {g['id']: g for g in games}
                 self.generation = generation
@@ -124,6 +127,7 @@ class PublicStatistics:
                 if since is not None:
                     games = [g for g in games if (g.get('played_at') or 0) >= since]
                 document = summarize(games, minimum)
+                document['elo'] = self.elo
             body = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
             self._put(key, body)
             return self._response(body)
