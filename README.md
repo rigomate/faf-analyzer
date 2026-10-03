@@ -173,3 +173,8 @@ For a player with rating R, strength is `10^((R-1000)/400)`. Team strength is th
 The **Teambalance** tab lets visitors select online friends locally. It exhaustively searches all splits with team sizes differing by at most one, scores them using the same strength model, removes mirrored duplicates, and shows the best three alternatives. Nobody is benched for odd player counts. New friends use 1000; provisional values and strongly uneven suggestions are labelled. Selection is preserved across unchanged automatic refreshes, never written to the server, and limited to 20 players to keep exhaustive search bounded. Color choices come from friends.json. Map, spawn, individual roles, and player synergy are not modeled.
 
 Verification: `node tests/test_balance.cjs` checks optimizer correctness; `pytest tests/test_elo.py tests/test_public.py` covers rating math and cache/filter behavior.
+
+
+`GET /api/replay` returns `{ "count": N, "replays": [...] }` for all currently eligible, known-result archived matches (one entry per game), newest first and independent of dashboard filters. It uses the same sanitized match documents as the dashboard: no filenames, paths, hashes, guest identities, or import errors. Friend policy and database changes invalidate its bounded response cache.
+
+Archive cards compare the actual winning team with the favorite calculated from current Elo in the selected period. They label favorite wins, upsets, exact 50:50, draws, and unsupported team layouts separately. This is a retrospective comparison with present ratings, not a historical prediction accuracy measurement.

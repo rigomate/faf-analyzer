@@ -24,3 +24,9 @@ const match={players:[{id:'a',team:'2'},{id:'b',team:'3'}],team_sizes:{'2':2,'3'
 assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1000}]}),{'2':2/3,'3':1/3});
 assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1400}]}),{'2':1/6,'3':5/6});
 assert.equal(currentGameBalance({...match,team_sizes:{'2':1,'3':1,'4':1}},{players:[]}),null);
+const {balanceVerdict}=require('../app/static/balance.js');
+const elo={players:[{id:'a',rating:1000},{id:'b',rating:1000}]};
+assert.equal(balanceVerdict({...match,outcome:'resolved',winner:'2'},elo).kind,'correct');
+assert.equal(balanceVerdict({...match,outcome:'resolved',winner:'3'},elo).kind,'upset');
+assert.equal(balanceVerdict({...match,outcome:'draw'},elo).kind,'neutral');
+assert.match(balanceVerdict({...match,team_sizes:{'2':1,'3':1},outcome:'resolved',winner:'2'},elo).text,/50:50/);

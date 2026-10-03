@@ -19,3 +19,5 @@
 .balance-option{margin:24px 0}.balance-option .row{gap:10px}.balance-option .pct{margin:12px 0 4px}#elo-table .history-swatch{margin-right:6px}#elo details{margin-top:18px}#elo summary{cursor:pointer}#balance-calculate{margin-top:8px}button:disabled{opacity:.5;cursor:not-allowed}
 
 .match-player{display:inline-flex;align-items:center;gap:8px;border-bottom:2px solid var(--player-color,transparent);padding-bottom:3px}.match-player-dot{width:10px;height:10px;border-radius:50%;background:var(--player-color);flex-shrink:0}.match-balance p{margin:10px 0}.match-balance small{display:block}
+
+.balance-verdict{font-size:12px;margin-top:10px;max-width:380px}.balance-verdict.correct{color:var(--mint)}.balance-verdict.upset{color:#ffb68a}.balance-verdict.neutral{color:var(--muted)}

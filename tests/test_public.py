@@ -217,3 +217,26 @@ def test_elo_uses_selected_period_but_not_player_filter(setup):
     write_config(config,['1','4'])
     fresh=document(service.dashboard())['elo']
     assert fresh['games']==0 and all(p['rating']==1000 for p in fresh['players'])
+
+
+def test_replay_endpoint_lists_only_currently_used_sanitized_games(setup):
+    app,config,game=setup
+    with TestClient(app) as client:
+        response=client.get('/api/replay')
+        assert response.status_code==200
+        data=response.json()
+        assert data['count']==1 and data['replays'][0]['id']=='123'
+        assert {p['id'] for p in data['replays'][0]['players']}=={'1','2','4'}
+        assert 'PRIVATE-' not in response.text
+        assert response.headers['cache-control']=='no-store'
+        assert client.get('/api/replay').json()==data
+        game['outcome']='unknown'
+        with app.state.store.connect() as db:
+            db.execute('UPDATE games SET document=? WHERE id=?',(json.dumps(game),'123'))
+        assert client.get('/api/replay').json()=={'count':0,'replays':[]}
+        game['outcome']='resolved'
+        with app.state.store.connect() as db:
+            db.execute('UPDATE games SET document=? WHERE id=?',(json.dumps(game),'123'))
+        assert client.get('/api/replay').json()['count']==1
+        write_config(config,['1','4'])
+        assert client.get('/api/replay').json()['count']==0

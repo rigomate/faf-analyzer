@@ -1,3 +1,15 @@
+function balanceVerdict(game, elo) {
+ const balance=currentGameBalance(game,elo);
+ if(!balance)return {kind:'neutral',text:'Elo-Abgleich nicht verfügbar'};
+ if(game.outcome==='draw')return {kind:'neutral',text:'Unentschieden · kein Sieger'};
+ if(game.outcome!=='resolved'||!(game.winner in balance))return {kind:'neutral',text:'Kein bekanntes Ergebnis'};
+ const teams=Object.keys(balance);
+ if(Math.abs(balance[teams[0]]-.5)<1e-9)return {kind:'neutral',text:'50:50 · kein Elo-Favorit'};
+ const favorite=teams.reduce((a,b)=>balance[a]>balance[b]?a:b);
+ const won=favorite===game.winner;
+ const chance=Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(balance[favorite]*100);
+ return {kind:won?'correct':'upset',text:`${won?'✓ Elo-Favorit gewinnt':'↯ Außenseiter gewinnt'} · Team ${favorite} war mit ${chance} % favorisiert`};
+}
 function currentGameBalance(game, elo) {
  const sizes=game.team_sizes||Object.fromEntries([...new Set(game.players.map(p=>p.team))].map(t=>[t,game.players.filter(p=>p.team===t).length]));
  const teams=Object.keys(sizes);if(teams.length!==2||!elo)return null;
@@ -73,4 +85,4 @@ const FafBalance=(()=>{
  }
  return {update};
 })();
-if(typeof module!=='undefined')module.exports={balancedTeams,currentGameBalance};
+if(typeof module!=='undefined')module.exports={balancedTeams,currentGameBalance,balanceVerdict};

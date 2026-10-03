@@ -116,7 +116,10 @@ class PublicStatistics:
                 self.generation = generation
                 self.entries.clear()
                 self.bytes = 0
-            if kind == 'game':
+            if kind == 'replays':
+                games = sorted(self.games, key=lambda g: (g.get('played_at') or 0, g['id']), reverse=True)
+                document = {'count': len(games), 'replays': games}
+            elif kind == 'game':
                 document = self.by_id.get(game_id)
                 if document is None:
                     raise HTTPException(404, 'Partie nicht gefunden')
@@ -142,3 +145,6 @@ class PublicStatistics:
 
     def game(self, game_id):
         return self._read('game', game_id=game_id)
+
+    def replays(self):
+        return self._read('replays')

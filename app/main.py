@@ -62,6 +62,10 @@ def create_app(db_path=None, replay_dir=None, interval=None, config_path=None):
                   minimum: int = Query(2, ge=1, le=1000)):
         return statistics.dashboard(player, since, minimum)
 
+    @app.get('/api/replay')
+    def replays():
+        return statistics.replays()
+
     @app.get('/api/games/{game_id}')
     def game(game_id: str):
         return statistics.game(game_id)
