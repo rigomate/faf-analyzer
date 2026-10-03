@@ -1,3 +1,14 @@
+function currentGameBalance(game, elo) {
+ const sizes=game.team_sizes||Object.fromEntries([...new Set(game.players.map(p=>p.team))].map(t=>[t,game.players.filter(p=>p.team===t).length]));
+ const teams=Object.keys(sizes);if(teams.length!==2||!elo)return null;
+ const ratings=new Map(elo.players.map(p=>[p.id,p.rating]));
+ const powers=teams.map(team=>{
+  const friends=game.players.filter(p=>p.team===team);
+  return Math.max(0,sizes[team]-friends.length)+friends.reduce((sum,p)=>sum+10**(((ratings.get(p.id)??1000)-1000)/400),0);
+ });
+ const total=powers[0]+powers[1];
+ return Object.fromEntries(teams.map((t,i)=>[t,powers[i]/total]));
+}
 /* Exhaustive local balancing. No online selection is sent to the server. */
 function balancedTeams(players) {
  if(players.length<2||players.length>20)return [];
@@ -45,7 +56,7 @@ const FafBalance=(()=>{
   const ratings=new Map(elo.players.map(p=>[p.id,p]));
   players=roster.map(p=>({...p,...(ratings.get(p.id)||{rating:1000,games:0,provisional:true})})).sort((a,b)=>a.name.localeCompare(b.name,'de'));
   selected=new Set([...selected].filter(id=>players.some(p=>p.id===id)));
-  document.querySelector('#elo-summary').textContent=`${elo.games} gewertete Partien · ${elo.undated_games} ohne Datum und ${elo.unsupported_games} mit unbrauchbaren Teams ausgelassen. Alle starten bei ${elo.base}, K-Faktor ${elo.k}.`;
+  document.querySelector('#elo-summary').textContent=`${elo.since==null?'Seit Anbeginn':'Ab '+date(elo.since)} · ${elo.games} gewertete Partien · ${elo.undated_games} ohne Datum und ${elo.unsupported_games} mit unbrauchbaren Teams ausgelassen. Alle starten bei ${elo.base}, K-Faktor ${elo.k}.`;
   const ranked=players.slice().sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name,'de'));
   document.querySelector('#elo-table').innerHTML=ranked.length?`<table><thead><tr><th>Spieler</th><th>Elo</th><th>Gewertete Partien</th><th>Datenlage</th></tr></thead><tbody>${ranked.map(p=>`<tr><td>${dot(p)} ${esc(p.name)}</td><td><strong>${Math.round(p.rating)}</strong></td><td>${p.games}</td><td>${p.games===0?'Noch keine Wertung · Startwert':p.provisional?'Vorläufig':'Mindestens 10 Partien'}</td></tr>`).join('')}</tbody></table>`:empty('Keine Freunde konfiguriert.');
   renderChoices();invalidate();
@@ -62,4 +73,4 @@ const FafBalance=(()=>{
  }
  return {update};
 })();
-if(typeof module!=='undefined')module.exports={balancedTeams};
+if(typeof module!=='undefined')module.exports={balancedTeams,currentGameBalance};

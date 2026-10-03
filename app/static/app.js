@@ -52,6 +52,7 @@ function render(){
  renderPlayers();renderPairs();renderMatches();renderImports();renderRoster();
  FafHistory.update(data, rosterData.players);
  FafBalance.update(data.elo, rosterData.players);
+ if($('#game-dialog').open)showGame($('#game-dialog').dataset.gameId);
 }
 function renderPlayers(){
  const agg=$('#aggregation').value;
@@ -78,10 +79,16 @@ function renderImports(){
  $('#import-counts').innerHTML=[['Importiert',counts.imported,'Erfolgreich eingelesene Replay-Dateien.'],['Ausgeschlossen',counts.excluded,'Diese Replays passen nicht zur Freundesregel.'],['Nicht verarbeitet',counts.error,'Diese Replays konnten noch nicht eingelesen werden.']].map(([label,count,description])=>`<article class="panel"><h2>${label}</h2><strong class="pct">${num(count)}</strong><p>${description}</p></article>`).join('');
 }
 function showGame(id){
- const g=data.games.find(g=>g.id===id);if(!g)return;
- const teams=[...new Set(g.players.map(p=>p.team))];
- $('#game-detail').innerHTML=`<div class="eyebrow">DAS GEFECHTSPROTOKOLL</div><h2>${esc(g.title)} · #${esc(g.id)}</h2><p class="game-meta">${esc(g.map)}<br>${date(g.played_at)} · ${duration(g.duration)}<br>${g.players.length} Freunde · ${g.guest_count || 0} Gäste · Statistiken nur für die Freundesliste.</p>${teams.map(t=>`<div class="team"><h3>Team ${esc(t)} ${g.winner===t?'· SIEG':''}</h3><div class="scroll"><table><thead><tr><th>Spieler</th><th>Teamergebnis</th><th>Reclaim-Masse</th><th>Experimentals</th><th>Punktestand</th><th>Masse eingenommen</th><th>Energie eingenommen</th><th>Letzter Datenstand</th></tr></thead><tbody>${g.players.filter(p=>p.team===t).map(p=>`<tr><td>${esc(p.name)}<small>${['Unbekannt','UEF','Aeon','Cybran','Seraphim'][p.faction]||'Andere'} · ${esc(p.reported_result ? p.reported_result.split(', ').map(outcomeText).join(', ') : 'kein Einzelergebnis')}</small></td><td>${outcomeText(p.result)}</td><td>${num(p.reclaim)}</td><td>${num(p.experimentals)}</td><td>${num(p.score)}</td><td>${num(p.mass)}</td><td>${num(p.energy)}</td><td>${p.stats_tick==null?'Fehlt':duration(p.stats_tick/10)}</td></tr>`).join('')}</tbody></table></div></div>`).join('')}<p class="footnote">Der letzte Datenstand kann vor dem Ende der Partie liegen. Die Werte sind aufgezeichnete Zwischenstände und nicht immer Endergebnisse. Wer früh ausscheidet, gewinnt trotzdem mit, wenn das Team später siegt.</p>`;
- $('#game-dialog').showModal();
+ const g=data.games.find(g=>g.id===id);if(!g){$('#game-dialog').close();return;}
+ $('#game-dialog').dataset.gameId=id;
+ const teams=Object.keys(g.team_sizes||Object.fromEntries(g.players.map(p=>[p.team,0])));
+ const balance=currentGameBalance(g,data.elo);
+ const ratingMap=new Map((data.elo?.players||[]).map(p=>[p.id,p]));
+ const colorMap=new Map(rosterData.players.filter(p=>/^#[0-9a-f]{6}$/i.test(p.color||'')).map(p=>[p.id,p.color]));
+ const chance=t=>balance?formatNumber(balance[t]*100)+' %':'—';
+ const balanceInfo=`<div class="notice match-balance"><strong>Balance mit aktueller Elo · ${data.elo?.since==null?'Seit Anbeginn':'Ab '+date(data.elo.since)}</strong><p>${balance?teams.map(t=>`Team ${esc(t)}: <strong>${chance(t)}</strong>`).join(' · '):'Balance-Prozente sind nur für zwei Teams verfügbar.'}</p><small>Heutige Modellschätzung anhand der aktuellen Wertungen im gewählten Zeitraum, keine historische Vorhersage.${g.guest_count?' Gäste zählen mit neutralen 1000 Elo.':''}${g.players.some(p=>(ratingMap.get(p.id)?.games||0)<10)?' Vorläufige Wertungen dabei (weniger als zehn Partien).':''}</small></div>`;
+ $('#game-detail').innerHTML=`<div class="eyebrow">DAS GEFECHTSPROTOKOLL</div><h2>${esc(g.title)} · #${esc(g.id)}</h2><p class="game-meta">${esc(g.map)}<br>${date(g.played_at)} · ${duration(g.duration)}<br>${g.players.length} Freunde · ${g.guest_count || 0} Gäste · Statistiken nur für die Freundesliste.</p>${balanceInfo}${teams.map(t=>`<div class="team"><h3>Team ${esc(t)} ${g.winner===t?'· SIEG':''}${balance?' · '+chance(t)+' Balance':''}</h3><div class="scroll"><table><thead><tr><th>Spieler</th><th>Teamergebnis</th><th>Reclaim-Masse</th><th>Experimentals</th><th>Punktestand</th><th>Masse eingenommen</th><th>Energie eingenommen</th><th>Letzter Datenstand</th></tr></thead><tbody>${g.players.filter(p=>p.team===t).map(p=>`<tr><td><span class="match-player" ${colorMap.has(p.id)?`style="--player-color:${colorMap.get(p.id)}"`:""}>${colorMap.has(p.id)?'<i class="match-player-dot"></i>':""}${esc(p.name)}</span><small>Elo aktuell: ${Math.round(ratingMap.get(p.id)?.rating??1000)}</small><small>${['Unbekannt','UEF','Aeon','Cybran','Seraphim'][p.faction]||'Andere'} · ${esc(p.reported_result ? p.reported_result.split(', ').map(outcomeText).join(', ') : 'kein Einzelergebnis')}</small></td><td>${outcomeText(p.result)}</td><td>${num(p.reclaim)}</td><td>${num(p.experimentals)}</td><td>${num(p.score)}</td><td>${num(p.mass)}</td><td>${num(p.energy)}</td><td>${p.stats_tick==null?'Fehlt':duration(p.stats_tick/10)}</td></tr>`).join('')}</tbody></table></div></div>`).join('')}<p class="footnote">Der letzte Datenstand kann vor dem Ende der Partie liegen. Die Werte sind aufgezeichnete Zwischenstände und nicht immer Endergebnisse. Wer früh ausscheidet, gewinnt trotzdem mit, wenn das Team später siegt.</p>`;
+ if(!$('#game-dialog').open)$('#game-dialog').showModal();
 }
 function renderRoster(){
  const policy=rosterData.policy;

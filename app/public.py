@@ -109,7 +109,7 @@ class PublicStatistics:
             if generation != self.generation:
                 eligible = [g for g in self.store.games()
                             if has_known_result(g) and exclusion_reason(g['players'], policy) is None]
-                self.elo = calculate_elo(eligible, friends)
+                self.elo_games = eligible
                 games = [statistics_game(g, friends) for g in eligible]
                 self.games = games
                 self.by_id = {g['id']: g for g in games}
@@ -127,7 +127,10 @@ class PublicStatistics:
                 if since is not None:
                     games = [g for g in games if (g.get('played_at') or 0) >= since]
                 document = summarize(games, minimum)
-                document['elo'] = self.elo
+                elo_games = self.elo_games
+                if since is not None:
+                    elo_games = [g for g in elo_games if (g.get('played_at') or 0) >= since]
+                document['elo'] = {**calculate_elo(elo_games, friends), 'since': since}
             body = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
             self._put(key, body)
             return self._response(body)

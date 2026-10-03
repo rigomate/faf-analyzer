@@ -19,3 +19,8 @@ for(let mask=0;mask<1<<players.length;mask++){
 }
 assert.equal(balancedTeams(players)[0].gap,optimum);
 console.log('Team balancing passed: optimum, even/odd lobbies, unique coverage, and player advantage.');
+const {currentGameBalance}=require('../app/static/balance.js');
+const match={players:[{id:'a',team:'2'},{id:'b',team:'3'}],team_sizes:{'2':2,'3':1}};
+assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1000}]}),{'2':2/3,'3':1/3});
+assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1400}]}),{'2':1/6,'3':5/6});
+assert.equal(currentGameBalance({...match,team_sizes:{'2':1,'3':1,'4':1}},{players:[]}),null);

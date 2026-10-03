@@ -1,3 +1,4 @@
+from collections import Counter
 from itertools import combinations
 from math import sqrt
 from .parser import METRICS
@@ -24,6 +25,7 @@ def statistics_game(game, player_ids):
     # Public allowlist: no source filenames, hashes, or internal diagnostics.
     fields = ('id', 'title', 'map', 'played_at', 'duration', 'outcome', 'winner')
     return {**{key: game.get(key) for key in fields}, 'players': visible,
+            'team_sizes': dict(Counter(p['team'] for p in game['players'])),
             'participant_count': len(game['players']), 'guest_count': len(game['players']) - len(visible)}
 
 
