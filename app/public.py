@@ -130,10 +130,8 @@ class PublicStatistics:
                 if since is not None:
                     games = [g for g in games if (g.get('played_at') or 0) >= since]
                 document = summarize(games, minimum)
-                elo_games = self.elo_games
-                if since is not None:
-                    elo_games = [g for g in elo_games if (g.get('played_at') or 0) >= since]
-                document['elo'] = {**calculate_elo(elo_games, friends), 'since': since}
+                # Current ratings always replay the full eligible archive, independent of filters.
+                document['elo'] = {**calculate_elo(self.elo_games, friends), 'since': None}
             body = json.dumps(document, ensure_ascii=False, allow_nan=False, separators=(',', ':')).encode('utf-8')
             self._put(key, body)
             return self._response(body)

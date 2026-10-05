@@ -13,7 +13,7 @@ from fafreplay import Parser, body_offset, body_ticks, commands, extract_scfa as
 RESULT = re.compile(r"^GpgNetSend with command 'GameResult' and data '(\d+),(victory|defeat|draw)\b")
 STATS_PREFIX = "GpgNetSend with command 'JsonStats' and data '"
 # Bump when changing extracted facts so unchanged replay files are reprocessed.
-PARSER_VERSION = 3
+PARSER_VERSION = 4
 METRICS = {
     'score': ('general', 'score'),
     'reclaim': ('resources', 'massin', 'reclaimed'),
@@ -67,7 +67,9 @@ def roster_from_header(header):
         if not army.get('Human') or army.get('Civilian') or index == 255:
             continue
         team = int(army.get('Team', 1))
-        players.append(dict(id=decode(army.get('OwnerID') or army['PlayerName']),
+        # A missing FAF ID is anonymous, never a display-name identity.
+        ident = decode(army['OwnerID']) if army.get('OwnerID') else f'anonymous-army-{index}'
+        players.append(dict(id=ident,
                             name=decode(army['PlayerName']), army=index + 1,
                             team=str(team) if team > 1 else f'ffa-{index}',
                             faction=int(army.get('Faction', 0))))

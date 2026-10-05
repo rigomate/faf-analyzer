@@ -197,7 +197,7 @@ def test_unknown_results_excluded_and_result_updates_invalidate_cache(setup):
                 assert all(p['win_rate'] is None and p['draws'] == 1 for p in data['players'])
 
 
-def test_elo_uses_selected_period_but_not_player_filter(setup):
+def test_current_elo_uses_all_history_independent_of_date_and_player_filters(setup):
     app,config,game=setup
     game['played_at']=100
     with app.state.store.connect() as db:
@@ -207,8 +207,9 @@ def test_elo_uses_selected_period_but_not_player_filter(setup):
     assert data['elo']['games']==1
     assert {p['id'] for p in data['elo']['players']}=={'1','2','4'}
     recent=document(service.dashboard(since=200))['elo']
-    assert recent['games']==0 and recent['since']==200
-    assert all(p['rating']==1000 and p['games']==0 for p in recent['players'])
+    assert recent == data['elo']
+    assert recent['games']==1 and recent['since'] is None
+    assert document(service.dashboard(since=200))['totals']['games']==0
     boundary=document(service.dashboard(since=100))['elo']
     assert boundary['games']==1 and boundary['players']==data['elo']['players']
     assert document(service.dashboard())['elo']==data['elo']

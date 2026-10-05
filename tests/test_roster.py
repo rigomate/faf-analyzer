@@ -205,3 +205,12 @@ def test_invalid_player_color_fails_closed(tmp_path, color):
     config=tmp_path/'friends.json'
     config.write_text(json.dumps({'players':[{'id':'1','name':'Friend','color':color}], 'max_outsiders':1}))
     assert load_policy(config)['error']
+
+
+def test_missing_owner_id_does_not_use_player_name_as_identity():
+    header = {'armies': {0: dict(Human=True, PlayerName=b'cassandra', Team=2)}}
+    player = roster_from_header(header)[0]
+    assert player['id'] == 'anonymous-army-0'
+    assert player['name'] == 'cassandra'
+    header['armies'][0]['PlayerName'] = b'pjetr'
+    assert roster_from_header(header)[0]['id'] == player['id']
