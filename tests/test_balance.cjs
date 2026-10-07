@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {balancedTeams,currentGameBalance,balanceVerdict}=require('../app/static/balance.js');
+const {balancedTeams,currentGameBalance,historicalGameBalance,balanceVerdict}=require('../app/static/balance.js');
 const people=ratings=>ratings.map((rating,i)=>({id:String(i),rating}));
 const perfect=balancedTeams(people([800,1000,800,1000]));
 assert.equal(perfect[0].gap,0);
@@ -20,16 +20,16 @@ for(let mask=0;mask<1<<players.length;mask++){
  optimum=Math.min(optimum,Math.abs(chance-.5));
 }
 assert.ok(Math.abs(balancedTeams(players)[0].gap-optimum)<1e-12);
-const match={players:[{id:'a',team:'2'},{id:'b',team:'3'}],team_sizes:{'2':2,'3':1}};
+const match={id:'match',players:[{id:'a',team:'2'},{id:'b',team:'3'}],team_sizes:{'2':2,'3':1}};
 assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1000}]}),{'2':.5,'3':.5});
 const expected=1/(1+10**(400/500));
 assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1400}]}),{'2':expected,'3':1-expected});
 assert.equal(currentGameBalance({...match,team_sizes:{'2':1,'3':1,'4':1}},{players:[]}),null);
-const elo={players:[{id:'a',rating:1100},{id:'b',rating:1000}]};
+const elo={players:[{id:'a',rating:800},{id:'b',rating:1500}],predictions:{match:{probabilities:{'2':.6,'3':.4}}}};
 assert.equal(balanceVerdict({...match,outcome:'resolved',winner:'2'},elo).kind,'correct');
 assert.equal(balanceVerdict({...match,outcome:'resolved',winner:'3'},elo).kind,'upset');
 assert.equal(balanceVerdict({...match,outcome:'draw'},elo).kind,'neutral');
-assert.match(balanceVerdict({...match,outcome:'resolved',winner:'2'},{players:[]}).text,/50:50/);
+assert.match(balanceVerdict({...match,outcome:'resolved',winner:'2'},{predictions:{match:{probabilities:{'2':.5,'3':.5}}}}).text,/50:50/);
 // Form and API parameters apply in both balancing paths.
 const formPlayers=[{id:'a',rating:1000,form:1},{id:'b',rating:1000,form:0}];
 const formChance=1/(1+10**(-20/500));
@@ -43,3 +43,8 @@ assert.equal(currentGameBalance({...match,team_sizes:{'2':0,'3':1}},elo),null);
 assert.deepEqual(currentGameBalance({...match,players:match.players.map(p=>({...p,kills_mass:1e9,score:1e9}))},elo),currentGameBalance(match,elo));
 assert.equal(balancedTeams([{id:'1'},{id:'2'}])[0].chance,.5);
 console.log('Team balancing passed: optimum, even/odd lobbies, identity, form, parameters, guests, and predictions.');
+
+assert.deepEqual(historicalGameBalance(match,elo),{'2':.6,'3':.4});
+assert.equal(historicalGameBalance({...match,id:'missing'},elo),null);
+assert.equal(balanceVerdict({...match,id:'missing',outcome:'resolved',winner:'2'},elo).kind,'neutral');
+assert.match(balanceVerdict({...match,outcome:'resolved',winner:'2'},{players:elo.players}).text,/nicht verfügbar/);

@@ -1,7 +1,7 @@
 function balanceVerdict(game, elo) {
- const balance=currentGameBalance(game,elo);
- if(!balance)return {kind:'neutral',text:'Elo-Abgleich nicht verfügbar'};
  if(game.outcome==='draw')return {kind:'neutral',text:'Unentschieden · kein Sieger'};
+ const balance=historicalGameBalance(game,elo);
+ if(!balance)return {kind:'neutral',text:'Historische Elo-Vorhersage nicht verfügbar'};
  if(game.outcome!=='resolved'||!(game.winner in balance))return {kind:'neutral',text:'Kein bekanntes Ergebnis'};
  const teams=Object.keys(balance);
  if(Math.abs(balance[teams[0]]-.5)<1e-9)return {kind:'neutral',text:'50:50 · kein Elo-Favorit'};
@@ -9,6 +9,9 @@ function balanceVerdict(game, elo) {
  const won=favorite===game.winner;
  const chance=Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(balance[favorite]*100);
  return {kind:won?'correct':'upset',text:`${won?'✓ Elo-Favorit gewinnt':'↯ Außenseiter gewinnt'} · Team ${favorite} war mit ${chance} % favorisiert`};
+}
+function historicalGameBalance(game, elo) {
+ return elo?.predictions?.[String(game.id)]?.probabilities??null;
 }
 // Defaults mirror app/elo.py; API parameters override them in the browser.
 const PREDICTION_DEFAULTS={base:1000,scale:500,form_strength:20};
@@ -99,4 +102,4 @@ const FafBalance=(()=>{
  }
  return {update};
 })();
-if(typeof module!=='undefined')module.exports={balancedTeams,currentGameBalance,balanceVerdict};
+if(typeof module!=='undefined')module.exports={balancedTeams,currentGameBalance,historicalGameBalance,balanceVerdict};

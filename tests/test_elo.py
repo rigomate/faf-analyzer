@@ -29,6 +29,25 @@ def test_history_matches_prefix_ratings_and_carries_absent_friends():
     assert 'guest' not in history[0]['ratings']
 
 
+def test_archive_predictions_use_only_pre_match_rating_and_form():
+    first = game('1', timestamp=100, teams=(('1',), ('2', 'guest')))
+    second = game('2', timestamp=200, teams=(('1',), ('2', 'guest')))
+    future = game('3', timestamp=300, winner='b', teams=(('1',), ('2', 'guest')))
+    before = calculate_elo([second, first], ['1', '2'])
+    after = calculate_elo([future, second, first, game('draw', winner=None)], ['1', '2'])
+    assert after['predictions']['1'] == before['predictions']['1']
+    assert after['predictions']['2'] == before['predictions']['2']
+    assert before['predictions']['1']['probabilities'] == {'a': .5, 'b': .5}
+    prediction = before['predictions']['2']
+    assert prediction['probabilities']['a'] == pytest.approx(expected_result(1034, 983))
+    assert prediction['players'] == [dict(id='1', rating=1024, games=1, form=1),
+                                     dict(id='2', rating=976, games=1, form=0)]
+    assert 'draw' not in after['predictions']
+    # Current-game performance changes the update, but never its prediction.
+    second['players'][0]['kills_mass'] = 1e9
+    assert calculate_elo([first, second], ['1', '2'])['predictions']['2'] == prediction
+
+
 def test_equal_teams_probability_winner_loser_and_simultaneous_updates():
     assert expected_result(1000, 1000) == .5
     assert expected_result(1000, 1500) == pytest.approx(1 / 11)

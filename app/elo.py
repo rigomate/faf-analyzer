@@ -83,6 +83,7 @@ def calculate_elo(games, friend_ids):
     counts = {i: 0 for i in friends}
     histories = {i: deque(maxlen=FORM_GAMES) for i in friends}
     timeline = []
+    predictions = {}
     used = undated = unsupported = unknown = 0
     # Validate dates before sorting; malformed timestamps cannot break public reads.
     dated = []
@@ -109,6 +110,10 @@ def calculate_elo(games, friend_ids):
         expected_a = expected_result(effective_team_rating(teams[team_a], ratings, histories),
                                      effective_team_rating(teams[team_b], ratings, histories))
         expected = {team_a: expected_a, team_b: 1 - expected_a}
+        predictions[str(game['id'])] = dict(
+            probabilities=expected,
+            players=[dict(id=i, rating=round(ratings[i], 3), games=counts[i],
+                          form=recent_form(histories[i])) for i in sorted(set(ids) & friends)])
         performances = performance_scores(players)
         updates = []
         for player, performance in zip(players, performances):
@@ -127,6 +132,7 @@ def calculate_elo(games, friend_ids):
                              ratings={i: round(ratings[i], 3) for i in sorted(friends)}))
         used += 1
     return dict(base=INITIAL_ELO, k=K, scale=ELO_SCALE, games=used, history=timeline,
+                predictions=predictions,
                 form_games=FORM_GAMES, form_strength=FORM_STRENGTH,
                 performance_multiplier=PERFORMANCE_MULTIPLIER,
                 undated_games=undated, unsupported_games=unsupported, unknown_games=unknown,
