@@ -16,6 +16,19 @@ def ratings(data):
     return {p['id']: p['rating'] for p in data['players']}
 
 
+def test_history_matches_prefix_ratings_and_carries_absent_friends():
+    first = game('1', timestamp=100, teams=(('1',), ('2', 'guest')))
+    second = game('2', timestamp=200, teams=(('2',), ('3',)))
+    result = calculate_elo([second, game('draw', winner=None), first], ['1', '2', '3'])
+    history = result['history']
+    assert [(p['id'], p['played_at']) for p in history] == [('1', 100), ('2', 200)]
+    assert history[0]['ratings'] == ratings(calculate_elo([first], ['1', '2', '3']))
+    assert history[-1]['ratings'] == ratings(result)
+    assert history[0]['ratings']['1'] == history[1]['ratings']['1'] == 1024
+    assert history[0]['ratings']['3'] == 1000
+    assert 'guest' not in history[0]['ratings']
+
+
 def test_equal_teams_probability_winner_loser_and_simultaneous_updates():
     assert expected_result(1000, 1000) == .5
     assert expected_result(1000, 1500) == pytest.approx(1 / 11)

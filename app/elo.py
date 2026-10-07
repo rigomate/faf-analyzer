@@ -82,6 +82,7 @@ def calculate_elo(games, friend_ids):
     ratings = {i: INITIAL_ELO for i in friends}
     counts = {i: 0 for i in friends}
     histories = {i: deque(maxlen=FORM_GAMES) for i in friends}
+    timeline = []
     used = undated = unsupported = unknown = 0
     # Validate dates before sorting; malformed timestamps cannot break public reads.
     dated = []
@@ -122,8 +123,10 @@ def calculate_elo(games, friend_ids):
             counts[ident] += 1
         for ident, _, actual in updates:
             histories[ident].append(actual)
+        timeline.append(dict(id=str(game['id']), played_at=game['played_at'],
+                             ratings={i: round(ratings[i], 3) for i in sorted(friends)}))
         used += 1
-    return dict(base=INITIAL_ELO, k=K, scale=ELO_SCALE, games=used,
+    return dict(base=INITIAL_ELO, k=K, scale=ELO_SCALE, games=used, history=timeline,
                 form_games=FORM_GAMES, form_strength=FORM_STRENGTH,
                 performance_multiplier=PERFORMANCE_MULTIPLIER,
                 undated_games=undated, unsupported_games=unsupported, unknown_games=unknown,

@@ -52,6 +52,7 @@ function render(){
  renderPlayers();renderPairs();renderMatches();renderImports();renderRoster();
  FafHistory.update(data, rosterData.players);
  FafBalance.update(data.elo, rosterData.players);
+ FafEloHistory.update(data.elo, rosterData.players);
  if($('#game-dialog').open)showGame($('#game-dialog').dataset.gameId);
 }
 function renderPlayers(){
