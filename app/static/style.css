@@ -21,3 +21,6 @@
 .match-player{display:inline-flex;align-items:center;gap:8px;border-bottom:2px solid var(--player-color,transparent);padding-bottom:3px}.match-player-dot{width:10px;height:10px;border-radius:50%;background:var(--player-color);flex-shrink:0}.match-balance p{margin:10px 0}.match-balance small{display:block}
 
 .balance-verdict{font-size:12px;margin-top:10px;max-width:380px}.balance-verdict.correct{color:var(--mint)}.balance-verdict.upset{color:#ffb68a}.balance-verdict.neutral{color:var(--muted)}
+
+#game-detail td small.elo-change.gain{color:var(--mint)}
+#game-detail td small.elo-change.loss{color:var(--orange)}

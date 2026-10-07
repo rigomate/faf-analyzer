@@ -48,6 +48,27 @@ def test_archive_predictions_use_only_pre_match_rating_and_form():
     assert calculate_elo([first, second], ['1', '2'])['predictions']['2'] == prediction
 
 
+def test_replay_changes_include_performance_and_match_historical_ratings():
+    first = game('1', timestamp=100, teams=(('1',), ('2', 'guest')))
+    second = game('2', timestamp=200, winner='b', teams=(('1',), ('2', 'guest')))
+    for p, value in zip(second['players'], (100, 0, 0)):
+        p['kills_mass'] = value
+    result = calculate_elo([second, first, game('draw', winner=None)], ['1', '2'])
+    assert result['changes']['1'] == {
+        '1': dict(before=1000, after=1024, delta=24),
+        '2': dict(before=1000, after=976, delta=-24)}
+    assert 'draw' not in result['changes']
+    assert 'guest' not in result['changes']['2']
+    for ident, change in result['changes']['2'].items():
+        assert change['before'] == result['history'][0]['ratings'][ident]
+        assert change['after'] == result['history'][1]['ratings'][ident]
+        assert change['delta'] == pytest.approx(change['after'] - change['before'], abs=.001)
+    plain = deepcopy(second)
+    for p in plain['players']:
+        p.pop('kills_mass')
+    assert result['changes']['2']['1']['delta'] > calculate_elo([first, plain], ['1', '2'])['changes']['2']['1']['delta']
+
+
 def test_equal_teams_probability_winner_loser_and_simultaneous_updates():
     assert expected_result(1000, 1000) == .5
     assert expected_result(1000, 1500) == pytest.approx(1 / 11)

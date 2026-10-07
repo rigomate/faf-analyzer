@@ -84,6 +84,7 @@ def calculate_elo(games, friend_ids):
     histories = {i: deque(maxlen=FORM_GAMES) for i in friends}
     timeline = []
     predictions = {}
+    changes = {}
     used = undated = unsupported = unknown = 0
     # Validate dates before sorting; malformed timestamps cannot break public reads.
     dated = []
@@ -123,6 +124,10 @@ def calculate_elo(games, friend_ids):
                 delta = K * (actual - expected[player['team']]) + PERFORMANCE_MULTIPLIER * performance
                 updates.append((ident, ratings[ident] + delta, actual))
         # Commit every delta before appending any current-game result to form.
+        changes[str(game['id'])] = {
+            ident: dict(before=round(ratings[ident], 3), after=round(rating, 3),
+                        delta=round(rating - ratings[ident], 3))
+            for ident, rating, _ in updates}
         for ident, rating, _ in updates:
             ratings[ident] = rating
             counts[ident] += 1
@@ -133,6 +138,7 @@ def calculate_elo(games, friend_ids):
         used += 1
     return dict(base=INITIAL_ELO, k=K, scale=ELO_SCALE, games=used, history=timeline,
                 predictions=predictions,
+                changes=changes,
                 form_games=FORM_GAMES, form_strength=FORM_STRENGTH,
                 performance_multiplier=PERFORMANCE_MULTIPLIER,
                 undated_games=undated, unsupported_games=unsupported, unknown_games=unknown,
