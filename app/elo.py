@@ -8,6 +8,7 @@ K = 48.0
 ELO_SCALE = 500.0
 FORM_GAMES = 5
 FORM_STRENGTH = 20.0
+TEAM_SIZE_BONUS = 325.0
 PERFORMANCE_MULTIPLIER = 6.0
 WEIGHT_SCORE = 0.00  # Raw FAF score is deliberately unused.
 WEIGHT_KILLS_MASS = 0.46
@@ -32,7 +33,7 @@ def effective_team_rating(members, ratings, histories):
     # Guests have neither persistent ratings nor form, so contribute neutral values.
     elo = fmean(ratings.get(str(p['id']), INITIAL_ELO) for p in members)
     form = fmean(recent_form(histories.get(str(p['id']), ())) for p in members)
-    return elo + FORM_STRENGTH * (form - 0.5)
+    return elo + FORM_STRENGTH * (form - 0.5) + TEAM_SIZE_BONUS * math.log2(len(members))
 
 
 def metric_value(player, metric):
@@ -140,6 +141,7 @@ def calculate_elo(games, friend_ids):
                 predictions=predictions,
                 changes=changes,
                 form_games=FORM_GAMES, form_strength=FORM_STRENGTH,
+                team_size_bonus=TEAM_SIZE_BONUS,
                 performance_multiplier=PERFORMANCE_MULTIPLIER,
                 undated_games=undated, unsupported_games=unsupported, unknown_games=unknown,
                 players=[dict(id=i, rating=round(ratings[i], 3), games=counts[i],

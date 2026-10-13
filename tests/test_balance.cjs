@@ -6,7 +6,7 @@ assert.equal(perfect[0].gap,0);
 assert.equal(perfect.length,3);
 for(const option of perfect){assert.equal(new Set([...option.a,...option.b].map(p=>p.id)).size,4);assert.equal(option.a.length,2);}
 const odd=balancedTeams(people([1000,1000,1000,1000,1000]));
-assert.equal(odd[0].a.length,2);assert.equal(odd[0].b.length,3);assert.equal(odd[0].chance,.5);
+assert.equal(odd[0].a.length,2);assert.equal(odd[0].b.length,3);assert.ok(Math.abs(odd[0].chance-1/(1+10**(325*Math.log2(3/2)/500)))<1e-12);
 assert.equal(balancedTeams(people([1000])).length,0);
 assert.equal(balancedTeams(people(Array(21).fill(1000))).length,0);
 assert.equal(balancedTeams(people([1000,1500]))[0].chance,1/11);
@@ -16,13 +16,13 @@ for(let mask=0;mask<1<<players.length;mask++){
  const team=players.filter((_,i)=>mask>>i&1);if(team.length!==3)continue;
  const other=players.filter((_,i)=>!(mask>>i&1));
  const mean=ps=>ps.reduce((s,p)=>s+p.rating,0)/ps.length;
- const chance=1/(1+10**((mean(other)-mean(team))/500));
+ const chance=1/(1+10**((mean(other)-mean(team)+325*Math.log2(other.length/team.length))/500));
  optimum=Math.min(optimum,Math.abs(chance-.5));
 }
 assert.ok(Math.abs(balancedTeams(players)[0].gap-optimum)<1e-12);
 const match={id:'match',players:[{id:'a',team:'2'},{id:'b',team:'3'}],team_sizes:{'2':2,'3':1}};
-assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1000}]}),{'2':.5,'3':.5});
-const expected=1/(1+10**(400/500));
+assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1000}]}),{'2':1/(1+10**(-325/500)),'3':1-1/(1+10**(-325/500))});
+const expected=1/(1+10**((400-325)/500));
 assert.deepEqual(currentGameBalance(match,{players:[{id:'a',rating:1000},{id:'b',rating:1400}]}),{'2':expected,'3':1-expected});
 assert.equal(currentGameBalance({...match,team_sizes:{'2':1,'3':1,'4':1}},{players:[]}),null);
 const elo={players:[{id:'a',rating:800},{id:'b',rating:1500}],predictions:{match:{probabilities:{'2':.6,'3':.4}}}};
@@ -35,7 +35,7 @@ const formPlayers=[{id:'a',rating:1000,form:1},{id:'b',rating:1000,form:0}];
 const formChance=1/(1+10**(-20/500));
 assert.ok(Math.abs(balancedTeams(formPlayers)[0].chance-formChance)<1e-12);
 assert.ok(Math.abs(currentGameBalance({...match,team_sizes:{'2':1,'3':1}},{players:formPlayers})['2']-formChance)<1e-12);
-assert.ok(Math.abs(currentGameBalance(match,{players:formPlayers})['2']-1/(1+10**(-15/500)))<1e-12);
+assert.ok(Math.abs(currentGameBalance(match,{players:formPlayers})['2']-1/(1+10**((-15-325)/500)))<1e-12);
 const custom={base:1000,scale:1000,form_strength:40};
 assert.ok(Math.abs(balancedTeams(formPlayers,custom)[0].chance-formChance)<1e-12);
 assert.ok(Math.abs(currentGameBalance({...match,team_sizes:{'2':1,'3':1}},{...custom,players:formPlayers})['2']-formChance)<1e-12);
@@ -48,3 +48,5 @@ assert.deepEqual(historicalGameBalance(match,elo),{'2':.6,'3':.4});
 assert.equal(historicalGameBalance({...match,id:'missing'},elo),null);
 assert.equal(balanceVerdict({...match,id:'missing',outcome:'resolved',winner:'2'},elo).kind,'neutral');
 assert.match(balanceVerdict({...match,outcome:'resolved',winner:'2'},{players:elo.players}).text,/nicht verfügbar/);
+
+assert.equal(balancedTeams(people([1000,1000,1000]),{team_size_bonus:0})[0].chance,.5);

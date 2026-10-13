@@ -24,7 +24,7 @@ def test_history_matches_prefix_ratings_and_carries_absent_friends():
     assert [(p['id'], p['played_at']) for p in history] == [('1', 100), ('2', 200)]
     assert history[0]['ratings'] == ratings(calculate_elo([first], ['1', '2', '3']))
     assert history[-1]['ratings'] == ratings(result)
-    assert history[0]['ratings']['1'] == history[1]['ratings']['1'] == 1024
+    assert history[0]['ratings']['1'] == history[1]['ratings']['1'] == round(1000+48*(1-expected_result(1000,1325)),3)
     assert history[0]['ratings']['3'] == 1000
     assert 'guest' not in history[0]['ratings']
 
@@ -37,11 +37,13 @@ def test_archive_predictions_use_only_pre_match_rating_and_form():
     after = calculate_elo([future, second, first, game('draw', winner=None)], ['1', '2'])
     assert after['predictions']['1'] == before['predictions']['1']
     assert after['predictions']['2'] == before['predictions']['2']
-    assert before['predictions']['1']['probabilities'] == {'a': .5, 'b': .5}
+    chance = expected_result(1000, 1325)
+    delta = 48 * (1-chance)
+    assert before['predictions']['1']['probabilities'] == {'a': chance, 'b': 1-chance}
     prediction = before['predictions']['2']
-    assert prediction['probabilities']['a'] == pytest.approx(expected_result(1034, 983))
-    assert prediction['players'] == [dict(id='1', rating=1024, games=1, form=1),
-                                     dict(id='2', rating=976, games=1, form=0)]
+    assert prediction['probabilities']['a'] == pytest.approx(expected_result(1010+delta, 1320-delta/2))
+    assert prediction['players'] == [dict(id='1', rating=round(1000+delta,3), games=1, form=1),
+                                     dict(id='2', rating=round(1000-delta,3), games=1, form=0)]
     assert 'draw' not in after['predictions']
     # Current-game performance changes the update, but never its prediction.
     second['players'][0]['kills_mass'] = 1e9
@@ -54,9 +56,10 @@ def test_replay_changes_include_performance_and_match_historical_ratings():
     for p, value in zip(second['players'], (100, 0, 0)):
         p['kills_mass'] = value
     result = calculate_elo([second, first, game('draw', winner=None)], ['1', '2'])
+    delta = round(48*(1-expected_result(1000,1325)),3)
     assert result['changes']['1'] == {
-        '1': dict(before=1000, after=1024, delta=24),
-        '2': dict(before=1000, after=976, delta=-24)}
+        '1': dict(before=1000, after=1000+delta, delta=delta),
+        '2': dict(before=1000, after=1000-delta, delta=-delta)}
     assert 'draw' not in result['changes']
     assert 'guest' not in result['changes']['2']
     for ident, change in result['changes']['2'].items():
@@ -97,7 +100,7 @@ def test_recent_form_and_team_average():
     assert recent_form([1, 0, 1]) == pytest.approx(2 / 3)
     assert recent_form([0, 1, 1, 1, 1, 1]) == 1
     members = [dict(id='1'), dict(id='2'), dict(id='guest')]
-    assert effective_team_rating(members, {'1': 1200, '2': 800}, {'1': [1], '2': [0]}) == 1000
+    assert effective_team_rating(members, {'1': 1200, '2': 800}, {'1': [1], '2': [0]}) == pytest.approx(1000 + 325 * math.log2(3))
     assert effective_team_rating([dict(id='1')], {'1': 1000}, {'1': [1]}) == 1010
 
 
@@ -105,8 +108,8 @@ def test_form_is_previous_five_results_without_current_result_leakage():
     games = [game(str(i), winner='a' if i < 6 else 'b', timestamp=i) for i in range(1, 8)]
     with patch('app.elo.expected_result', wraps=expected_result) as predict:
         result = calculate_elo(games, ['1', '2', '3', '4'])
-    assert predict.call_args_list[0].args == (1000, 1000)
-    assert predict.call_args_list[1].args == (1034, 966)  # 1024+10 vs 976-10.
+    assert predict.call_args_list[0].args == (1325, 1325)
+    assert predict.call_args_list[1].args == (1359, 1291)  # 1024+10 vs 976-10.
     player = next(p for p in result['players'] if p['id'] == '1')
     assert player['form'] == .6  # Last five are win, win, win, loss, loss.
     assert player['games'] == 7
@@ -122,7 +125,7 @@ def test_current_performance_and_score_never_enter_prediction():
     with patch('app.elo.expected_result', wraps=expected_result) as predict:
         plain = calculate_elo([first], ['1', '2', '3', '4'])
         enhanced = calculate_elo([boosted], ['1', '2', '3', '4'])
-    assert [c.args for c in predict.call_args_list] == [(1000, 1000), (1000, 1000)]
+    assert [c.args for c in predict.call_args_list] == [(1325, 1325), (1325, 1325)]
     assert ratings(enhanced)['1'] > ratings(plain)['1']
     boosted['players'][0]['score'] = -1e99
     assert calculate_elo([boosted], ['1', '2', '3', '4']) == enhanced
@@ -138,9 +141,10 @@ def test_performance_logs_population_z_and_individual_updates():
     for p, metrics in zip(match['players'], players):
         p.update(metrics)
     result = ratings(calculate_elo([match], ['1', '2', '3']))
-    assert result['1'] == pytest.approx(1024-6*.88*math.sqrt(1.5), abs=.001)
-    assert result['2'] == 1024
-    assert result['3'] == pytest.approx(976+6*.88*math.sqrt(1.5), abs=.001)
+    delta = 48*(1-expected_result(1325,1000))
+    assert result['1'] == pytest.approx(1000+delta-6*.88*math.sqrt(1.5), abs=.001)
+    assert result['2'] == pytest.approx(1000+delta, abs=.001)
+    assert result['3'] == pytest.approx(1000-delta+6*.88*math.sqrt(1.5), abs=.001)
 
 
 def test_zero_stddev_and_negative_values():
@@ -161,10 +165,12 @@ def test_missing_stats_neutral_imputation_and_population_std():
 def test_uneven_teams_guest_neutral_and_no_guest_rating_or_form():
     match = game(teams=(('1',), ('2', 'guest')))
     result = calculate_elo([match], ['1', '2', 'new'])
-    assert ratings(result) == {'1': 1024, '2': 976, 'new': 1000}
+    delta = 48 * (1 - expected_result(1000, 1325))
+    assert ratings(result) == pytest.approx({'1': 1000+delta, '2': 1000-delta, 'new': 1000}, abs=.001)
+    assert result['team_size_bonus'] == 325
     with patch('app.elo.expected_result', wraps=expected_result) as predict:
         calculate_elo([match, game('2', timestamp=200, teams=(('1',), ('2', 'guest')))], ['1', '2'])
-    assert predict.call_args_list[1].args == (1034, 983)  # Guest stays at 1000/form .5.
+    assert predict.call_args_list[1].args == pytest.approx((1010+delta, 1320-delta/2))  # Guest stays at 1000/form .5.
     assert 'guest' not in ratings(result)
     assert next(p for p in result['players'] if p['id'] == 'new')['form'] == .5
 
@@ -174,8 +180,8 @@ def test_guests_performance_is_included_in_match_normalization():
     for p, value in zip(match['players'], (0, 0, 100)):
         p['kills_mass'] = value
     result = calculate_elo([match], ['1', '2'])
-    assert ratings(result)['1'] == pytest.approx(1024-6*.46/math.sqrt(2), abs=.001)
-    assert ratings(result)['2'] == pytest.approx(976-6*.46/math.sqrt(2), abs=.001)
+    assert ratings(result)['1'] == pytest.approx(1000+48*(1-expected_result(1000,1325))-6*.46/math.sqrt(2), abs=.001)
+    assert ratings(result)['2'] == pytest.approx(1000-48*(1-expected_result(1000,1325))-6*.46/math.sqrt(2), abs=.001)
 
 
 def test_faf_id_identity_cassandra_to_pjetr_continuous_rating_form_counts():

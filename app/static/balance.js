@@ -14,7 +14,7 @@ function historicalGameBalance(game, elo) {
  return elo?.predictions?.[String(game.id)]?.probabilities??null;
 }
 // Defaults mirror app/elo.py; API parameters override them in the browser.
-const PREDICTION_DEFAULTS={base:1000,scale:500,form_strength:20};
+const PREDICTION_DEFAULTS={base:1000,scale:500,form_strength:20,team_size_bonus:325};
 function effectivePlayerRating(player, model) {
  return (player?.rating??model.base)+model.form_strength*((player?.form??.5)-.5);
 }
@@ -31,7 +31,7 @@ function currentGameBalance(game, elo) {
   const friends=game.players.filter(p=>p.team===team);
   if(!Number.isInteger(sizes[team])||sizes[team]<friends.length||sizes[team]<=0)return NaN;
   const guests=sizes[team]-friends.length;
-  return (guests*model.base+friends.reduce((sum,p)=>sum+effectivePlayerRating(ratings.get(String(p.id)),model),0))/sizes[team];
+  return (guests*model.base+friends.reduce((sum,p)=>sum+effectivePlayerRating(ratings.get(String(p.id)),model),0))/sizes[team]+model.team_size_bonus*Math.log2(sizes[team]);
  });
  if(effective.some(v=>!Number.isFinite(v)))return null;
  const chance=winProbability(effective[0],effective[1],model.scale);
@@ -48,7 +48,7 @@ function balancedTeams(players, parameters={}) {
   if(chosen.length===size){
    if(sorted.length%2===0&&chosen[0]!==0)return; // Mirrored teams are the same suggestion.
    const ids=new Set(chosen);
-   const chance=winProbability(sum/size,(total-sum)/(sorted.length-size),model.scale), gap=Math.abs(chance-.5);
+   const chance=winProbability(sum/size+model.team_size_bonus*Math.log2(size),(total-sum)/(sorted.length-size)+model.team_size_bonus*Math.log2(sorted.length-size),model.scale), gap=Math.abs(chance-.5);
    const candidate={a:chosen.map(i=>sorted[i]),b:sorted.filter((_,i)=>!ids.has(i)),chance,gap};
    best.push(candidate);best.sort((a,b)=>a.gap-b.gap);if(best.length>3)best.pop();
    return;
