@@ -1,3 +1,8 @@
+// FAF reserves team 1 for unassigned armies; display assigned teams from 1.
+function teamLabel(team) {
+ const value=String(team);
+ return /^\d+$/.test(value)&&Number(value)>1?String(Number(value)-1):value;
+}
 function balanceVerdict(game, elo) {
  if(game.outcome==='draw')return {kind:'neutral',text:'Unentschieden · kein Sieger'};
  const balance=historicalGameBalance(game,elo);
@@ -8,7 +13,7 @@ function balanceVerdict(game, elo) {
  const favorite=teams.reduce((a,b)=>balance[a]>balance[b]?a:b);
  const won=favorite===game.winner;
  const chance=Intl.NumberFormat('de-DE',{maximumFractionDigits:1}).format(balance[favorite]*100);
- return {kind:won?'correct':'upset',text:`${won?'✓ Elo-Favorit gewinnt':'↯ Außenseiter gewinnt'} · Team ${favorite} war mit ${chance} % favorisiert`};
+ return {kind:won?'correct':'upset',text:`${won?'✓ Elo-Favorit gewinnt':'↯ Außenseiter gewinnt'} · Team ${teamLabel(favorite)} war mit ${chance} % favorisiert`};
 }
 function historicalGameBalance(game, elo) {
  return elo?.predictions?.[String(game.id)]?.probabilities??null;
