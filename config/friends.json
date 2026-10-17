@@ -3,6 +3,7 @@
   "min_friends": 2,
   "players": [
     {"id": "349167", "name": "cassandra", "color": "light-green"},
+    {"id": "325437", "name": "dariball", "color": "blue"},
     {"id": "205099", "name": "DerFaultier", "color": "white"},
     {"id": "25228", "name": "DerKinderRiegel", "color": "pink"},
     {"id": "465052", "name": "Druide", "color": "green"},
